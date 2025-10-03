@@ -1,0 +1,14 @@
+# Cache static assets aggressively
+/wasm/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/wasm/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache other assets
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Don't cache HTML
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

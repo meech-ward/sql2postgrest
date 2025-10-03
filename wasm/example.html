@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>sql2postgrest WASM Demo</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 { color: #333; }
+        textarea, pre {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        pre {
+            background: #f5f5f5;
+            overflow-x: auto;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover { background: #0052a3; }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .example {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background: #e7f3ff;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .example:hover { background: #cce5ff; }
+        .error {
+            color: #d00;
+            background: #fee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .info code {
+            background: #fff;
+            padding: 2px 5px;
+            border-radius: 2px;
+            font-family: 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 sql2postgrest WASM Demo</h1>
+    <p>Convert PostgreSQL SQL to PostgREST REST API requests in your browser!</p>
+
+    <div class="info">
+        <strong>Output Format:</strong> Pure JSON with HTTP request details:
+        <ul>
+            <li><code>method</code> - HTTP method (GET, POST, PATCH, DELETE)</li>
+            <li><code>url</code> - Full PostgREST URL with query parameters</li>
+            <li><code>headers</code> - Request headers (if any)</li>
+            <li><code>body</code> - Request body (if any)</li>
+        </ul>
+    </div>
+
+    <h3>Try these examples:</h3>
+    <div id="examples">
+        <span class="example" data-sql="SELECT * FROM users WHERE age > 18">SELECT with WHERE</span>
+        <span class="example" data-sql="SELECT * FROM users WHERE id IN (1, 2, 3)">IN operator</span>
+        <span class="example" data-sql="SELECT * FROM products WHERE price BETWEEN 10 AND 100">BETWEEN</span>
+        <span class="example" data-sql="SELECT * FROM users WHERE name LIKE 'John%'">LIKE</span>
+        <span class="example" data-sql="INSERT INTO users (id, name, active) VALUES (1, 'Alice', true)">INSERT</span>
+        <span class="example" data-sql="UPDATE users SET status = 'active', verified = true WHERE id = 5">UPDATE</span>
+        <span class="example" data-sql="DELETE FROM users WHERE id = 10">DELETE</span>
+    </div>
+
+    <h3>SQL Query:</h3>
+    <textarea id="sql" placeholder="Enter your SQL query here...">SELECT * FROM users WHERE age > 18</textarea>
+
+    <div>
+        <label>
+            Base URL: 
+            <input type="text" id="baseUrl" value="http://localhost:3000" style="width: 300px; padding: 5px;">
+        </label>
+    </div>
+
+    <button id="convert">Convert to PostgREST</button>
+
+    <div id="loading" class="loading" style="display: none;">Loading WASM...</div>
+    <div id="error" class="error" style="display: none;"></div>
+
+    <h3>Result:</h3>
+    <pre id="output">Click "Convert" to see the result...</pre>
+
+    <script src="wasm_exec.js"></script>
+    <script src="sql2postgrest.js"></script>
+    <script>
+        const converter = new SQL2PostgREST();
+        const sqlInput = document.getElementById('sql');
+        const baseUrlInput = document.getElementById('baseUrl');
+        const convertBtn = document.getElementById('convert');
+        const output = document.getElementById('output');
+        const errorDiv = document.getElementById('error');
+        const loadingDiv = document.getElementById('loading');
+
+        // Load WASM on page load
+        loadingDiv.style.display = 'block';
+        converter.load('./sql2postgrest.wasm')
+            .then(() => {
+                loadingDiv.style.display = 'none';
+                console.log('WASM loaded successfully');
+            })
+            .catch(err => {
+                loadingDiv.style.display = 'none';
+                errorDiv.textContent = 'Failed to load WASM: ' + err.message;
+                errorDiv.style.display = 'block';
+                convertBtn.disabled = true;
+            });
+
+        // Convert button
+        convertBtn.addEventListener('click', () => {
+            const sql = sqlInput.value.trim();
+            const baseURL = baseUrlInput.value.trim();
+            
+            if (!sql) {
+                errorDiv.textContent = 'Please enter a SQL query';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+
+            try {
+                const result = converter.convert(sql, baseURL);
+                output.textContent = JSON.stringify(result, null, 2);
+            } catch (err) {
+                errorDiv.textContent = 'Error: ' + err.message;
+                errorDiv.style.display = 'block';
+            }
+        });
+
+        // Example buttons
+        document.getElementById('examples').addEventListener('click', (e) => {
+            if (e.target.classList.contains('example')) {
+                sqlInput.value = e.target.getAttribute('data-sql');
+            }
+        });
+
+        // Enter key to convert
+        sqlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                convertBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
