@@ -78,8 +78,8 @@ func (c *Converter) convertSelect(stmt *ast.SelectStmt) (*ConversionResult, erro
 		return nil, fmt.Errorf("DISTINCT not yet supported")
 	}
 
-	if stmt.GroupClause != nil {
-		return nil, fmt.Errorf("GROUP BY not yet supported")
+	if stmt.GroupClause != nil && len(joins) == 0 {
+		return nil, fmt.Errorf("GROUP BY not supported for simple queries (use aggregate functions with JOINs or PostgREST's native aggregation)")
 	}
 
 	if stmt.HavingClause != nil {

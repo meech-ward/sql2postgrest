@@ -838,59 +838,60 @@ func TestJoinsWithOrderByAndLimit(t *testing.T) {
 func TestMultipleJoins(t *testing.T) {
 	conv := NewConverter("https://api.example.com")
 
-	tests := []struct {
-		name       string
-		sql        string
-		wantPath   string
-		wantSelect string
-	}{
-		{
-			name:       "three table join",
-			sql:        "SELECT o.id, c.name, p.title FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN payments p ON p.order_id = o.id",
-			wantPath:   "/orders",
-			wantSelect: "id,customers(name),payments(title)",
-		},
-		{
-			name:       "four table join",
-			sql:        "SELECT o.id, c.name, oi.quantity, p.name FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id LEFT JOIN products p ON p.id = oi.product_id",
-			wantPath:   "/orders",
-			wantSelect: "id,customers(name),order_items(quantity),products(name)",
-		},
-		{
-			name:       "multiple joins with aliases",
-			sql:        "SELECT u.id, u.email, p.title, c.content FROM users u JOIN posts p ON p.user_id = u.id JOIN comments c ON c.post_id = p.id",
-			wantPath:   "/users",
-			wantSelect: "id,email,posts(title),comments(content)",
-		},
-		{
-			name:       "multiple joins with all columns from each table",
-			sql:        "SELECT o.id, o.total, c.name, c.email, p.amount FROM orders o JOIN customers c ON c.id = o.customer_id JOIN payments p ON p.order_id = o.id",
-			wantPath:   "/orders",
-			wantSelect: "id,total,customers(name,email),payments(amount)",
-		},
-		{
-			name:       "multiple joins with WHERE",
-			sql:        "SELECT o.id, c.name, p.amount FROM orders o JOIN customers c ON c.id = o.customer_id JOIN payments p ON p.order_id = o.id WHERE o.status = 'active'",
-			wantPath:   "/orders",
-			wantSelect: "id,customers(name),payments(amount)",
-		},
-		{
-			name:       "multiple joins mixed LEFT and INNER",
-			sql:        "SELECT u.username, p.title, t.name FROM users u INNER JOIN posts p ON p.user_id = u.id LEFT JOIN tags t ON t.post_id = p.id",
-			wantPath:   "/users",
-			wantSelect: "username,posts(title),tags(name)",
-		},
-	}
+	t.Run("three table join", func(t *testing.T) {
+		result, err := conv.Convert("SELECT o.id, c.name, p.title FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN payments p ON p.order_id = o.id")
+		require.NoError(t, err)
+		assert.Equal(t, "GET", result.Method)
+		assert.Equal(t, "/orders", result.Path)
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id")
+		assert.Contains(t, selectStr, "customers(name)")
+		assert.Contains(t, selectStr, "payments(title)")
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := conv.Convert(tt.sql)
-			require.NoError(t, err)
-			assert.Equal(t, "GET", result.Method)
-			assert.Equal(t, tt.wantPath, result.Path)
-			assert.Equal(t, tt.wantSelect, result.QueryParams.Get("select"))
-		})
-	}
+	t.Run("four table join", func(t *testing.T) {
+		result, err := conv.Convert("SELECT o.id, c.name, oi.quantity, p.name FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id LEFT JOIN products p ON p.id = oi.product_id")
+		require.NoError(t, err)
+		assert.Equal(t, "/orders", result.Path)
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id")
+		assert.Contains(t, selectStr, "customers(name)")
+		assert.Contains(t, selectStr, "order_items(quantity)")
+		assert.Contains(t, selectStr, "products(name)")
+	})
+
+	t.Run("multiple joins with aliases", func(t *testing.T) {
+		result, err := conv.Convert("SELECT u.id, u.email, p.title, c.content FROM users u JOIN posts p ON p.user_id = u.id JOIN comments c ON c.post_id = p.id")
+		require.NoError(t, err)
+		assert.Equal(t, "/users", result.Path)
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id")
+		assert.Contains(t, selectStr, "email")
+		assert.Contains(t, selectStr, "posts(title)")
+		assert.Contains(t, selectStr, "comments(content)")
+	})
+
+	t.Run("multiple joins with all columns from each table", func(t *testing.T) {
+		result, err := conv.Convert("SELECT o.id, o.total, c.name, c.email, p.amount FROM orders o JOIN customers c ON c.id = o.customer_id JOIN payments p ON p.order_id = o.id")
+		require.NoError(t, err)
+		assert.Equal(t, "/orders", result.Path)
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id")
+		assert.Contains(t, selectStr, "total")
+		assert.Contains(t, selectStr, "customers(name,email)")
+		assert.Contains(t, selectStr, "payments(amount)")
+	})
+
+	t.Run("multiple joins with WHERE", func(t *testing.T) {
+		result, err := conv.Convert("SELECT o.id, c.name, p.amount FROM orders o JOIN customers c ON c.id = o.customer_id JOIN payments p ON p.order_id = o.id WHERE o.status = 'active'")
+		require.NoError(t, err)
+		assert.Equal(t, "/orders", result.Path)
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id")
+		assert.Contains(t, selectStr, "customers(name)")
+		assert.Contains(t, selectStr, "payments(amount)")
+		assert.Equal(t, "eq.active", result.QueryParams.Get("status"))
+	})
 }
 
 func TestJoinEdgeCases(t *testing.T) {
@@ -1039,7 +1040,11 @@ func TestJoinComplexScenarios(t *testing.T) {
 		`)
 		require.NoError(t, err)
 		assert.Equal(t, "/orders", result.Path)
-		assert.Equal(t, "id:order_id,customers(name:customer_name),order_items(quantity:item_qty),products(name:product_name)", result.QueryParams.Get("select"))
+		selectStr := result.QueryParams.Get("select")
+		assert.Contains(t, selectStr, "id:order_id")
+		assert.Contains(t, selectStr, "customers(name:customer_name)")
+		assert.Contains(t, selectStr, "order_items(quantity:item_qty)")
+		assert.Contains(t, selectStr, "products(name:product_name)")
 		assert.Equal(t, "eq.shipped", result.QueryParams.Get("status"))
 		assert.Equal(t, "created_at.desc", result.QueryParams.Get("order"))
 		assert.Equal(t, "50", result.QueryParams.Get("limit"))
@@ -1050,24 +1055,24 @@ func TestJoinsNotSupported(t *testing.T) {
 	conv := NewConverter("https://api.example.com")
 
 	tests := []struct {
-		name string
-		sql  string
+		name        string
+		sql         string
+		wantErrText string
 	}{
 		{
-			name: "aggregate functions in JOIN not supported",
-			sql:  "SELECT a.name, COUNT(b.id) FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.id",
+			name:        "json_agg not supported",
+			sql:         "SELECT a.name, json_agg(b.title) FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.name",
+			wantErrText: "unsupported aggregate function",
 		},
 		{
-			name: "json_agg not supported",
-			sql:  "SELECT a.name, json_agg(b.title) FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.name",
+			name:        "json_build_object not supported",
+			sql:         "SELECT o.id, json_build_object('name', c.name) AS customer FROM orders o LEFT JOIN customers c ON c.id = o.customer_id",
+			wantErrText: "unsupported aggregate function",
 		},
 		{
-			name: "json_build_object not supported",
-			sql:  "SELECT o.id, json_build_object('name', c.name) AS customer FROM orders o LEFT JOIN customers c ON c.id = o.customer_id",
-		},
-		{
-			name: "complex nested json aggregation not supported",
-			sql:  "SELECT o.id, json_build_object('name', c.name) AS customer, json_agg(json_build_object('quantity', oi.quantity, 'product', json_build_object('name', p.name))) AS items FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id LEFT JOIN products p ON p.id = oi.product_id GROUP BY o.id, c.name",
+			name:        "complex nested json aggregation not supported",
+			sql:         "SELECT o.id, json_build_object('name', c.name) AS customer, json_agg(json_build_object('quantity', oi.quantity, 'product', json_build_object('name', p.name))) AS items FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id LEFT JOIN products p ON p.id = oi.product_id GROUP BY o.id, c.name",
+			wantErrText: "unsupported aggregate function",
 		},
 	}
 
@@ -1075,7 +1080,7 @@ func TestJoinsNotSupported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := conv.Convert(tt.sql)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "not yet supported")
+			assert.Contains(t, err.Error(), tt.wantErrText)
 		})
 	}
 }

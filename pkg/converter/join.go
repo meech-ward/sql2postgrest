@@ -214,7 +214,19 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 			baseColumns = append(baseColumns, "*")
 
 		case *ast.FuncCall:
-			return "", fmt.Errorf("aggregate functions in JOINs not yet supported (use PostgREST's aggregate functions instead)")
+			tableName, funcStr, err := c.convertFunctionCallForJoin(val, resTarget.Name, joins)
+			if err != nil {
+				return "", err
+			}
+
+			if tableName == "" {
+				baseColumns = append(baseColumns, funcStr)
+			} else {
+				if embeds[tableName] == nil {
+					embeds[tableName] = &embedInfo{columns: []string{}}
+				}
+				embeds[tableName].columns = append(embeds[tableName].columns, funcStr)
+			}
 
 		default:
 			return "", fmt.Errorf("unsupported SELECT expression type in JOIN: %T", val)
@@ -240,4 +252,97 @@ func (c *Converter) stripTablePrefix(colName string) string {
 		return parts[1]
 	}
 	return colName
+}
+
+func (c *Converter) convertFunctionCallForJoin(fn *ast.FuncCall, alias string, joins map[string]joinInfo) (string, string, error) {
+	if fn.Funcname == nil || len(fn.Funcname.Items) == 0 {
+		return "", "", fmt.Errorf("function name is empty")
+	}
+
+	funcNameNode, ok := fn.Funcname.Items[len(fn.Funcname.Items)-1].(*ast.String)
+	if !ok {
+		return "", "", fmt.Errorf("invalid function name type")
+	}
+
+	funcName := strings.ToLower(funcNameNode.SVal)
+
+	supportedAggregates := map[string]bool{
+		"count": true,
+		"sum":   true,
+		"avg":   true,
+		"max":   true,
+		"min":   true,
+	}
+
+	if !supportedAggregates[funcName] {
+		return "", "", fmt.Errorf("unsupported aggregate function in JOIN: %s (only count, sum, avg, max, min are supported)", funcName)
+	}
+
+	var result string
+	var targetTable string
+
+	if funcName == "count" {
+		if fn.Args == nil || len(fn.Args.Items) == 0 {
+			result = "count()"
+		} else if len(fn.Args.Items) == 1 {
+			arg := fn.Args.Items[0]
+			if _, isStar := arg.(*ast.A_Star); isStar {
+				result = "count()"
+			} else if colRef, ok := arg.(*ast.ColumnRef); ok {
+				colName := c.extractColumnName(colRef)
+				parts := strings.Split(colName, ".")
+
+				if len(parts) == 2 {
+					tableAlias := parts[0]
+					column := parts[1]
+
+					if joinInfo, exists := joins[tableAlias]; exists && !joinInfo.isBase {
+						targetTable = joinInfo.tableName
+						result = column + ".count()"
+					} else {
+						result = column + ".count()"
+					}
+				} else {
+					result = colName + ".count()"
+				}
+			} else {
+				return "", "", fmt.Errorf("unsupported COUNT argument type: %T", arg)
+			}
+		} else {
+			return "", "", fmt.Errorf("COUNT accepts at most one argument")
+		}
+	} else {
+		if fn.Args == nil || len(fn.Args.Items) != 1 {
+			return "", "", fmt.Errorf("%s requires exactly one argument", strings.ToUpper(funcName))
+		}
+
+		arg := fn.Args.Items[0]
+		colRef, ok := arg.(*ast.ColumnRef)
+		if !ok {
+			return "", "", fmt.Errorf("%s argument must be a column reference", strings.ToUpper(funcName))
+		}
+
+		colName := c.extractColumnName(colRef)
+		parts := strings.Split(colName, ".")
+
+		if len(parts) == 2 {
+			tableAlias := parts[0]
+			column := parts[1]
+
+			if joinInfo, exists := joins[tableAlias]; exists && !joinInfo.isBase {
+				targetTable = joinInfo.tableName
+				result = column + "." + funcName + "()"
+			} else {
+				result = column + "." + funcName + "()"
+			}
+		} else {
+			result = colName + "." + funcName + "()"
+		}
+	}
+
+	if alias != "" {
+		result = result + ":" + alias
+	}
+
+	return targetTable, result, nil
 }

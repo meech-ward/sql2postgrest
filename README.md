@@ -91,6 +91,10 @@ make install
 # JOIN (converts to embedded resources)
 ./sql2postgrest "SELECT a.name, b.title FROM authors a LEFT JOIN books b ON b.author_id = a.id"
 → {"method":"GET","url":"http://localhost:3000/authors?select=name,books(title)"}
+
+# Aggregates with JOIN
+./sql2postgrest "SELECT a.name, COUNT(b.id) AS book_count, SUM(b.price) AS total_revenue FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.id, a.name"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name,books(id.count():book_count,price.sum():total_revenue)"}
 ```
 
 ### CLI Options
@@ -168,6 +172,30 @@ JOINs are automatically converted to PostgREST's [embedded resources](https://po
 
 **Note**: The left-most table in the JOIN becomes the base resource path. All other joined tables become embedded resources.
 
+### Aggregate Functions with JOINs
+
+Aggregate functions (COUNT, SUM, AVG, MAX, MIN) are fully supported with JOINs:
+
+```bash
+# Count related records
+./sql2postgrest "SELECT a.name, COUNT(b.id) AS book_count FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.name"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name,books(id.count():book_count)"}
+
+# Sum values from related table
+./sql2postgrest "SELECT c.name, SUM(o.total) AS revenue FROM customers c JOIN orders o ON o.customer_id = c.id GROUP BY c.id"
+→ {"method":"GET","url":"http://localhost:3000/customers?select=name,orders(total.sum():revenue)"}
+
+# Multiple aggregates
+./sql2postgrest "SELECT a.name, COUNT(b.id) AS num_books, AVG(b.price) AS avg_price FROM authors a JOIN books b ON b.author_id = a.id GROUP BY a.name"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name,books(id.count():num_books,price.avg():avg_price)"}
+
+# Aggregates with WHERE, ORDER BY, LIMIT
+./sql2postgrest "SELECT c.name, SUM(o.total) AS revenue FROM customers c JOIN orders o ON o.customer_id = c.id WHERE c.active = true GROUP BY c.id ORDER BY c.name LIMIT 10"
+→ {"method":"GET","url":"http://localhost:3000/customers?active=eq.true&limit=10&order=name.asc&select=name,orders(total.sum():revenue)"}
+```
+
+**Note**: Aggregates are placed inside the embedded resource they're aggregating. PostgREST handles GROUP BY automatically.
+
 ## Supported SQL Features
 
 ### ✅ SELECT Queries
@@ -183,8 +211,9 @@ JOINs are automatically converted to PostgREST's [embedded resources](https://po
 - **OR conditions**: `WHERE age < 18 OR age > 65`
 - **ORDER BY**: ASC/DESC, NULLS FIRST/LAST
 - **LIMIT / OFFSET**: Pagination
-- **Aggregate functions**: COUNT, SUM, AVG, MIN, MAX
+- **Aggregate functions**: COUNT, SUM, AVG, MIN, MAX (with JOINs)
 - **JOINs**: LEFT JOIN, INNER JOIN, RIGHT JOIN (converts to PostgREST embedded resources)
+- **GROUP BY**: Automatic grouping with aggregates in JOINs
 
 ### ✅ INSERT Queries
 
@@ -505,11 +534,11 @@ sql2postgrest/
 
 - **Subqueries** - Not supported
 - **CTEs (WITH)** - Not supported
-- **GROUP BY / HAVING** - Not supported (use PostgREST's aggregate functions instead)
+- **HAVING** - Not supported
 - **Window functions** - Not supported
 - **NOT IN** - Planned
 - **Complex expressions** - Function calls in WHERE not yet supported
-- **Aggregate functions with JOINs** - Not supported (use PostgREST's native aggregation)
+- **JSON functions** - json_agg, json_build_object not supported (use PostgREST's native aggregation)
 
 ### By Design (PostgREST Limitations)
 
