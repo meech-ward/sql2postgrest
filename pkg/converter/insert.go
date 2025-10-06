@@ -114,6 +114,12 @@ func (c *Converter) extractInsertValue(node ast.Node) (interface{}, error) {
 		return c.extractConstValueInterface(val)
 	case *ast.ColumnRef:
 		return c.extractColumnName(val), nil
+	case *ast.TypeCast:
+		return c.extractInsertValue(val.Arg)
+	case *ast.A_Expr:
+		return c.extractExprValue(val)
+	case *ast.ArrayExpr:
+		return c.extractArrayValueInterface(val)
 	default:
 		return nil, fmt.Errorf("unsupported value type: %T", node)
 	}
@@ -140,6 +146,26 @@ func (c *Converter) extractConstValueInterface(aConst *ast.A_Const) (interface{}
 	default:
 		return nil, fmt.Errorf("unsupported const type: %T", aConst.Val)
 	}
+}
+
+func (c *Converter) extractExprValue(expr *ast.A_Expr) (interface{}, error) {
+	return nil, fmt.Errorf("expressions in INSERT/UPDATE values not yet supported")
+}
+
+func (c *Converter) extractArrayValueInterface(arr *ast.ArrayExpr) (interface{}, error) {
+	if arr.Elements == nil || len(arr.Elements.Items) == 0 {
+		return []interface{}{}, nil
+	}
+
+	var result []interface{}
+	for _, item := range arr.Elements.Items {
+		val, err := c.extractInsertValue(item)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, val)
+	}
+	return result, nil
 }
 
 func (c *Converter) addOnConflict(result *ConversionResult, onConflict *ast.OnConflictClause) error {

@@ -81,7 +81,13 @@ go build -o sql2postgrest ./cmd/sql2postgrest
 - **OR conditions**: `WHERE age < 18 OR age > 65`
 
 ### ❌ Not Supported
-- **CTEs (WITH), Subqueries, HAVING, Window functions**
+- **CTEs (WITH), Subqueries, Window functions** - No PostgREST equivalent
+- **HAVING** - Create a database VIEW instead:
+  ```sql
+  -- ❌ Can't convert: SELECT author_id, COUNT(*) FROM books GROUP BY author_id HAVING COUNT(*) > 5
+  -- ✅ Create VIEW: CREATE VIEW prolific_authors AS SELECT ... HAVING COUNT(*) > 5
+  -- Then query: GET /prolific_authors
+  ```
 - **json_agg/json_build_object** - PostgREST handles JSON automatically:
   ```sql
   -- ❌ Don't use: SELECT a.name, json_agg(...) FROM authors a JOIN books b ...

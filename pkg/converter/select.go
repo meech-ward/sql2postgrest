@@ -85,7 +85,7 @@ func (c *Converter) convertSelect(stmt *ast.SelectStmt) (*ConversionResult, erro
 	}
 
 	if stmt.HavingClause != nil {
-		return nil, fmt.Errorf("HAVING not yet supported")
+		return nil, fmt.Errorf("HAVING not supported - PostgREST has no HAVING equivalent. Create a database VIEW with the aggregation and HAVING clause, then query the view")
 	}
 
 	if stmt.WithClause != nil {

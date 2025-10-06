@@ -23,6 +23,8 @@ import (
 
 func (c *Converter) addWhereClause(result *ConversionResult, whereClause ast.Node) error {
 	switch expr := whereClause.(type) {
+	case *ast.ParenExpr:
+		return c.addWhereClause(result, expr.Expr)
 	case *ast.A_Expr:
 		return c.addSimpleCondition(result, expr)
 	case *ast.BoolExpr:
@@ -99,13 +101,22 @@ func (c *Converter) addOperatorCondition(result *ConversionResult, expr *ast.A_E
 		return c.addFullTextSearch(result, expr)
 	}
 
-	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
-	if !ok {
-		return fmt.Errorf("left side of operator must be a column reference")
-	}
+	var colName string
 
-	colName := c.extractColumnName(colRef)
-	colName = c.stripTablePrefix(colName)
+	if colRef, ok := expr.Lexpr.(*ast.ColumnRef); ok {
+		colName = c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
+	} else if jsonExpr, ok := expr.Lexpr.(*ast.A_Expr); ok {
+		var err error
+		colName, err = c.extractJSONPath(jsonExpr)
+		if err != nil {
+			return fmt.Errorf("failed to extract JSON path: %w", err)
+		}
+	} else if funcCall, ok := expr.Lexpr.(*ast.FuncCall); ok {
+		return c.addFunctionOperatorCondition(result, expr, funcCall, operator)
+	} else {
+		return fmt.Errorf("left side of operator must be a column reference, JSON path, or function call, got: %T", expr.Lexpr)
+	}
 
 	rightValue, err := c.extractWhereValue(expr.Rexpr)
 	if err != nil {
@@ -123,13 +134,20 @@ func (c *Converter) addOperatorCondition(result *ConversionResult, expr *ast.A_E
 }
 
 func (c *Converter) addInCondition(result *ConversionResult, expr *ast.A_Expr, negate bool) error {
-	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
-	if !ok {
-		return fmt.Errorf("IN: left side must be a column reference")
-	}
+	var colName string
 
-	colName := c.extractColumnName(colRef)
-	colName = c.stripTablePrefix(colName)
+	if colRef, ok := expr.Lexpr.(*ast.ColumnRef); ok {
+		colName = c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
+	} else if jsonExpr, ok := expr.Lexpr.(*ast.A_Expr); ok {
+		var err error
+		colName, err = c.extractJSONPath(jsonExpr)
+		if err != nil {
+			return fmt.Errorf("IN: failed to extract JSON path: %w", err)
+		}
+	} else {
+		return fmt.Errorf("IN: left side must be a column reference or JSON path, got: %T", expr.Lexpr)
+	}
 
 	listNode, ok := expr.Rexpr.(*ast.NodeList)
 	if !ok {
@@ -192,13 +210,20 @@ func (c *Converter) addBetweenCondition(result *ConversionResult, expr *ast.A_Ex
 }
 
 func (c *Converter) addLikeCondition(result *ConversionResult, expr *ast.A_Expr, caseInsensitive bool, negate bool) error {
-	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
-	if !ok {
-		return fmt.Errorf("LIKE: left side must be a column reference")
-	}
+	var colName string
 
-	colName := c.extractColumnName(colRef)
-	colName = c.stripTablePrefix(colName)
+	if colRef, ok := expr.Lexpr.(*ast.ColumnRef); ok {
+		colName = c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
+	} else if jsonExpr, ok := expr.Lexpr.(*ast.A_Expr); ok {
+		var err error
+		colName, err = c.extractJSONPath(jsonExpr)
+		if err != nil {
+			return fmt.Errorf("LIKE: failed to extract JSON path: %w", err)
+		}
+	} else {
+		return fmt.Errorf("LIKE: left side must be a column reference or JSON path, got: %T", expr.Lexpr)
+	}
 
 	pattern, err := c.extractWhereValue(expr.Rexpr)
 	if err != nil {
@@ -363,37 +388,271 @@ func (c *Converter) addBoolExpr(result *ConversionResult, expr *ast.BoolExpr) er
 
 func (c *Converter) extractOrCondition(node ast.Node) (string, error) {
 	switch expr := node.(type) {
+	case *ast.ParenExpr:
+		return c.extractOrCondition(expr.Expr)
+
+	case *ast.BoolExpr:
+		switch expr.Boolop {
+		case ast.AND_EXPR:
+			var andParts []string
+			for _, arg := range expr.Args.Items {
+				part, err := c.extractOrCondition(arg)
+				if err != nil {
+					return "", err
+				}
+				andParts = append(andParts, part)
+			}
+			return "and(" + strings.Join(andParts, ",") + ")", nil
+
+		case ast.OR_EXPR:
+			var orParts []string
+			for _, arg := range expr.Args.Items {
+				part, err := c.extractOrCondition(arg)
+				if err != nil {
+					return "", err
+				}
+				orParts = append(orParts, part)
+			}
+			return "or(" + strings.Join(orParts, ",") + ")", nil
+
+		case ast.NOT_EXPR:
+			if len(expr.Args.Items) != 1 {
+				return "", fmt.Errorf("NOT expression must have exactly one argument")
+			}
+			part, err := c.extractOrCondition(expr.Args.Items[0])
+			if err != nil {
+				return "", err
+			}
+			return "not." + part, nil
+
+		default:
+			return "", fmt.Errorf("unsupported boolean operation in OR: %v", expr.Boolop)
+		}
+
 	case *ast.A_Expr:
-		if expr.Name == nil || len(expr.Name.Items) == 0 {
-			return "", fmt.Errorf("operator name is empty")
+		switch expr.Kind {
+		case ast.AEXPR_IN:
+			negate := false
+			if expr.Name != nil && len(expr.Name.Items) > 0 {
+				if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+					if opNode.SVal == "<>" {
+						negate = true
+					}
+				}
+			}
+
+			colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+			if !ok {
+				return "", fmt.Errorf("IN: left side must be a column reference")
+			}
+
+			colName := c.extractColumnName(colRef)
+			colName = c.stripTablePrefix(colName)
+
+			listNode, ok := expr.Rexpr.(*ast.NodeList)
+			if !ok {
+				return "", fmt.Errorf("IN: right side must be a list")
+			}
+
+			var values []string
+			for _, item := range listNode.Items {
+				val, err := c.extractWhereValue(item)
+				if err != nil {
+					return "", fmt.Errorf("IN: failed to extract value: %w", err)
+				}
+				values = append(values, val)
+			}
+
+			if len(values) == 0 {
+				return "", fmt.Errorf("IN: empty value list")
+			}
+
+			op := "in.(" + strings.Join(values, ",") + ")"
+			if negate {
+				op = "not." + op
+			}
+			return colName + "." + op, nil
+
+		case ast.AEXPR_LIKE:
+			negate := false
+			if expr.Name != nil && len(expr.Name.Items) > 0 {
+				if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+					if opNode.SVal == "!~~" {
+						negate = true
+					}
+				}
+			}
+
+			colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+			if !ok {
+				return "", fmt.Errorf("LIKE: left side must be a column reference")
+			}
+
+			colName := c.extractColumnName(colRef)
+			colName = c.stripTablePrefix(colName)
+
+			pattern, err := c.extractWhereValue(expr.Rexpr)
+			if err != nil {
+				return "", fmt.Errorf("LIKE: failed to extract pattern: %w", err)
+			}
+
+			pattern = c.convertLikePattern(pattern)
+
+			var op string
+			if negate {
+				op = "not.like"
+			} else {
+				op = "like"
+			}
+
+			return colName + "." + op + "." + pattern, nil
+
+		case ast.AEXPR_ILIKE:
+			negate := false
+			if expr.Name != nil && len(expr.Name.Items) > 0 {
+				if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+					if opNode.SVal == "!~~*" {
+						negate = true
+					}
+				}
+			}
+
+			colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+			if !ok {
+				return "", fmt.Errorf("ILIKE: left side must be a column reference")
+			}
+
+			colName := c.extractColumnName(colRef)
+			colName = c.stripTablePrefix(colName)
+
+			pattern, err := c.extractWhereValue(expr.Rexpr)
+			if err != nil {
+				return "", fmt.Errorf("ILIKE: failed to extract pattern: %w", err)
+			}
+
+			pattern = c.convertLikePattern(pattern)
+
+			var op string
+			if negate {
+				op = "not.ilike"
+			} else {
+				op = "ilike"
+			}
+
+			return colName + "." + op + "." + pattern, nil
+
+		case ast.AEXPR_BETWEEN:
+			colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+			if !ok {
+				return "", fmt.Errorf("BETWEEN: left side must be a column reference")
+			}
+
+			colName := c.extractColumnName(colRef)
+			colName = c.stripTablePrefix(colName)
+
+			listNode, ok := expr.Rexpr.(*ast.NodeList)
+			if !ok || len(listNode.Items) != 2 {
+				return "", fmt.Errorf("BETWEEN: right side must have exactly 2 values")
+			}
+
+			minVal, err := c.extractWhereValue(listNode.Items[0])
+			if err != nil {
+				return "", fmt.Errorf("BETWEEN: failed to extract min value: %w", err)
+			}
+
+			maxVal, err := c.extractWhereValue(listNode.Items[1])
+			if err != nil {
+				return "", fmt.Errorf("BETWEEN: failed to extract max value: %w", err)
+			}
+
+			return colName + ".and(gte." + minVal + ",lte." + maxVal + ")", nil
+
+		case ast.AEXPR_NOT_BETWEEN:
+			colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+			if !ok {
+				return "", fmt.Errorf("NOT BETWEEN: left side must be a column reference")
+			}
+
+			colName := c.extractColumnName(colRef)
+			colName = c.stripTablePrefix(colName)
+
+			listNode, ok := expr.Rexpr.(*ast.NodeList)
+			if !ok || len(listNode.Items) != 2 {
+				return "", fmt.Errorf("NOT BETWEEN: right side must have exactly 2 values")
+			}
+
+			minVal, err := c.extractWhereValue(listNode.Items[0])
+			if err != nil {
+				return "", fmt.Errorf("NOT BETWEEN: failed to extract min value: %w", err)
+			}
+
+			maxVal, err := c.extractWhereValue(listNode.Items[1])
+			if err != nil {
+				return "", fmt.Errorf("NOT BETWEEN: failed to extract max value: %w", err)
+			}
+
+			return colName + ".not.and(gte." + minVal + ",lte." + maxVal + ")", nil
+
+		case ast.AEXPR_OP:
+			if expr.Name == nil || len(expr.Name.Items) == 0 {
+				return "", fmt.Errorf("operator name is empty")
+			}
+
+			opNode, ok := expr.Name.Items[0].(*ast.String)
+			if !ok {
+				return "", fmt.Errorf("invalid operator type")
+			}
+
+			operator := opNode.SVal
+
+			var colName string
+
+			if colRef, ok := expr.Lexpr.(*ast.ColumnRef); ok {
+				colName = c.extractColumnName(colRef)
+				colName = c.stripTablePrefix(colName)
+			} else if jsonExpr, ok := expr.Lexpr.(*ast.A_Expr); ok {
+				var err error
+				colName, err = c.extractJSONPath(jsonExpr)
+				if err != nil {
+					return "", fmt.Errorf("failed to extract JSON path: %w", err)
+				}
+			} else if _, ok := expr.Lexpr.(*ast.FuncCall); ok {
+				return "", fmt.Errorf("function calls on left side in OR conditions not yet supported")
+			} else {
+				return "", fmt.Errorf("left side must be a column reference or JSON path, got: %T", expr.Lexpr)
+			}
+
+			rightValue, err := c.extractWhereValue(expr.Rexpr)
+			if err != nil {
+				return "", err
+			}
+
+			postgrestOp, err := c.mapOperator(operator, rightValue)
+			if err != nil {
+				return "", err
+			}
+
+			return colName + "." + postgrestOp, nil
+
+		default:
+			return "", fmt.Errorf("unsupported A_Expr kind in OR: %d", expr.Kind)
 		}
 
-		opNode, ok := expr.Name.Items[0].(*ast.String)
+	case *ast.NullTest:
+		colRef, ok := expr.Arg.(*ast.ColumnRef)
 		if !ok {
-			return "", fmt.Errorf("invalid operator type")
-		}
-
-		operator := opNode.SVal
-
-		colRef, ok := expr.Lexpr.(*ast.ColumnRef)
-		if !ok {
-			return "", fmt.Errorf("left side must be a column reference")
+			return "", fmt.Errorf("NULL test argument must be a column reference")
 		}
 
 		colName := c.extractColumnName(colRef)
 		colName = c.stripTablePrefix(colName)
 
-		rightValue, err := c.extractWhereValue(expr.Rexpr)
-		if err != nil {
-			return "", err
+		if expr.Nulltesttype == ast.IS_NULL {
+			return colName + ".is.null", nil
+		} else if expr.Nulltesttype == ast.IS_NOT_NULL {
+			return colName + ".not.is.null", nil
 		}
-
-		postgrestOp, err := c.mapOperator(operator, rightValue)
-		if err != nil {
-			return "", err
-		}
-
-		return colName + "." + postgrestOp, nil
+		return "", fmt.Errorf("unsupported NULL test type")
 
 	default:
 		return "", fmt.Errorf("unsupported OR condition type: %T", node)
@@ -401,13 +660,20 @@ func (c *Converter) extractOrCondition(node ast.Node) (string, error) {
 }
 
 func (c *Converter) addNullTest(result *ConversionResult, expr *ast.NullTest) error {
-	colRef, ok := expr.Arg.(*ast.ColumnRef)
-	if !ok {
-		return fmt.Errorf("NULL test argument must be a column reference")
-	}
+	var colName string
 
-	colName := c.extractColumnName(colRef)
-	colName = c.stripTablePrefix(colName)
+	if colRef, ok := expr.Arg.(*ast.ColumnRef); ok {
+		colName = c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
+	} else if jsonExpr, ok := expr.Arg.(*ast.A_Expr); ok {
+		var err error
+		colName, err = c.extractJSONPath(jsonExpr)
+		if err != nil {
+			return fmt.Errorf("NULL test: failed to extract JSON path: %w", err)
+		}
+	} else {
+		return fmt.Errorf("NULL test argument must be a column reference or JSON path, got: %T", expr.Arg)
+	}
 
 	if expr.Nulltesttype == ast.IS_NULL {
 		result.QueryParams.Add(colName, "is.null")
@@ -424,6 +690,15 @@ func (c *Converter) addNotExpr(result *ConversionResult, node ast.Node) error {
 	switch expr := node.(type) {
 	case *ast.ParenExpr:
 		return c.addNotExpr(result, expr.Expr)
+	case *ast.BoolExpr:
+		orParts := []string{}
+		part, err := c.extractOrCondition(expr)
+		if err != nil {
+			return fmt.Errorf("NOT with nested conditions: %w", err)
+		}
+		orParts = append(orParts, "not."+part)
+		result.QueryParams.Add("or", strings.Join(orParts, ","))
+		return nil
 	case *ast.A_Expr:
 		switch expr.Kind {
 		case ast.AEXPR_IN:
@@ -623,4 +898,91 @@ func (c *Converter) extractFunctionValue(fn *ast.FuncCall) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported function in WHERE: %s", funcName)
 	}
+}
+
+func (c *Converter) extractJSONPath(expr *ast.A_Expr) (string, error) {
+	if expr.Name == nil || len(expr.Name.Items) == 0 {
+		return "", fmt.Errorf("JSON operator name is empty")
+	}
+
+	opNode, ok := expr.Name.Items[0].(*ast.String)
+	if !ok {
+		return "", fmt.Errorf("invalid JSON operator type")
+	}
+
+	operator := opNode.SVal
+
+	if operator != "->" && operator != "->>" {
+		return "", fmt.Errorf("expected JSON operator (-> or ->>), got: %s", operator)
+	}
+
+	var baseColumn string
+	if colRef, ok := expr.Lexpr.(*ast.ColumnRef); ok {
+		baseColumn = c.extractColumnName(colRef)
+		baseColumn = c.stripTablePrefix(baseColumn)
+	} else if nestedExpr, ok := expr.Lexpr.(*ast.A_Expr); ok {
+		var err error
+		baseColumn, err = c.extractJSONPath(nestedExpr)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		return "", fmt.Errorf("invalid JSON path base: %T", expr.Lexpr)
+	}
+
+	field, err := c.extractWhereValue(expr.Rexpr)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract JSON field: %w", err)
+	}
+
+	return baseColumn + operator + field, nil
+}
+
+func (c *Converter) addFunctionOperatorCondition(result *ConversionResult, expr *ast.A_Expr, funcCall *ast.FuncCall, operator string) error {
+	if funcCall.Funcname == nil || len(funcCall.Funcname.Items) == 0 {
+		return fmt.Errorf("function name is empty")
+	}
+
+	funcNameNode, ok := funcCall.Funcname.Items[len(funcCall.Funcname.Items)-1].(*ast.String)
+	if !ok {
+		return fmt.Errorf("invalid function name type")
+	}
+
+	funcName := funcNameNode.SVal
+
+	if funcName == "int4range" || funcName == "int8range" || funcName == "numrange" || funcName == "tsrange" || funcName == "tstzrange" || funcName == "daterange" {
+		if funcCall.Args == nil || len(funcCall.Args.Items) != 2 {
+			return fmt.Errorf("range function requires exactly 2 arguments")
+		}
+
+		arg1, err := c.extractWhereValue(funcCall.Args.Items[0])
+		if err != nil {
+			return fmt.Errorf("failed to extract range start: %w", err)
+		}
+
+		arg2, err := c.extractWhereValue(funcCall.Args.Items[1])
+		if err != nil {
+			return fmt.Errorf("failed to extract range end: %w", err)
+		}
+
+		rangeValue := "[" + arg1 + "," + arg2 + ")"
+
+		colRef, ok := expr.Rexpr.(*ast.ColumnRef)
+		if !ok {
+			return fmt.Errorf("right side of range operator must be a column reference")
+		}
+
+		colName := c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
+
+		postgrestOp, err := c.mapOperator(operator, rangeValue)
+		if err != nil {
+			return err
+		}
+
+		result.QueryParams.Add(colName, postgrestOp)
+		return nil
+	}
+
+	return fmt.Errorf("unsupported function on left side of operator: %s", funcName)
 }

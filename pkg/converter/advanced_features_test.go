@@ -390,3 +390,291 @@ func TestComplexCombinations(t *testing.T) {
 		_ = err
 	})
 }
+
+func TestJSONOperatorsInWHERE(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name       string
+		sql        string
+		wantMethod string
+		wantPath   string
+		wantParam  string
+		wantValue  string
+	}{
+		{
+			name:       "JSON text extraction ->>",
+			sql:        "SELECT * FROM orders WHERE metadata->>'status' = 'shipped'",
+			wantMethod: "GET",
+			wantPath:   "/orders",
+			wantParam:  "metadata->>status",
+			wantValue:  "eq.shipped",
+		},
+		{
+			name:       "JSON object extraction ->",
+			sql:        "SELECT * FROM users WHERE data->'address'->>'city' = 'NYC'",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantParam:  "data->address->>city",
+			wantValue:  "eq.NYC",
+		},
+		{
+			name:       "JSON with other operators",
+			sql:        "SELECT * FROM products WHERE config->>'stock' > '100'",
+			wantMethod: "GET",
+			wantPath:   "/products",
+			wantParam:  "config->>stock",
+			wantValue:  "gt.100",
+		},
+		{
+			name:       "JSON with IN operator",
+			sql:        "SELECT * FROM items WHERE meta->>'category' IN ('A', 'B', 'C')",
+			wantMethod: "GET",
+			wantPath:   "/items",
+			wantParam:  "meta->>category",
+			wantValue:  "in.(A,B,C)",
+		},
+		{
+			name:       "JSON with LIKE",
+			sql:        "SELECT * FROM posts WHERE content->>'tags' LIKE '%javascript%'",
+			wantMethod: "GET",
+			wantPath:   "/posts",
+			wantParam:  "content->>tags",
+			wantValue:  "like.*javascript*",
+		},
+		{
+			name:       "JSON with IS NULL",
+			sql:        "SELECT * FROM accounts WHERE settings->>'theme' IS NULL",
+			wantMethod: "GET",
+			wantPath:   "/accounts",
+			wantParam:  "settings->>theme",
+			wantValue:  "is.null",
+		},
+		{
+			name:       "JSON with AND conditions",
+			sql:        "SELECT * FROM orders WHERE metadata->>'status' = 'shipped' AND metadata->>'priority' = 'high'",
+			wantMethod: "GET",
+			wantPath:   "/orders",
+			wantParam:  "metadata->>status",
+			wantValue:  "eq.shipped",
+		},
+		{
+			name:       "JSON with OR conditions",
+			sql:        "SELECT * FROM users WHERE data->>'role' = 'admin' OR data->>'role' = 'moderator'",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantParam:  "or",
+			wantValue:  "(data->>role.eq.admin,data->>role.eq.moderator)",
+		},
+		{
+			name:       "JSON in UPDATE",
+			sql:        "UPDATE profiles SET active = true WHERE settings->>'notifications' = 'enabled'",
+			wantMethod: "PATCH",
+			wantPath:   "/profiles",
+			wantParam:  "settings->>notifications",
+			wantValue:  "eq.enabled",
+		},
+		{
+			name:       "JSON in DELETE",
+			sql:        "DELETE FROM logs WHERE metadata->>'type' = 'debug'",
+			wantMethod: "DELETE",
+			wantPath:   "/logs",
+			wantParam:  "metadata->>type",
+			wantValue:  "eq.debug",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMethod, result.Method)
+			assert.Equal(t, tt.wantPath, result.Path)
+			assert.Equal(t, tt.wantValue, result.QueryParams.Get(tt.wantParam))
+		})
+	}
+}
+
+func TestTypeCastSupport(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name     string
+		sql      string
+		wantBody string
+	}{
+		{
+			name:     "INSERT with ::jsonb cast",
+			sql:      "INSERT INTO profiles (user_id, settings) VALUES (1, '{\"theme\": \"dark\"}'::jsonb)",
+			wantBody: `[{"user_id":1,"settings":"{\"theme\": \"dark\"}"}]`,
+		},
+		{
+			name:     "INSERT with ::text cast",
+			sql:      "INSERT INTO logs (message) VALUES ('error'::text)",
+			wantBody: `[{"message":"error"}]`,
+		},
+		{
+			name:     "INSERT with ::integer cast",
+			sql:      "INSERT INTO stats (count) VALUES ('42'::integer)",
+			wantBody: `[{"count":"42"}]`,
+		},
+		{
+			name:     "UPDATE with ::jsonb cast",
+			sql:      "UPDATE profiles SET settings = '{\"theme\": \"dark\"}'::jsonb WHERE user_id = 1",
+			wantBody: `{"settings":"{\"theme\": \"dark\"}"}`,
+		},
+		{
+			name:     "UPDATE with multiple casts",
+			sql:      "UPDATE data SET config = '{}'::jsonb, status = 'active'::text WHERE id = 5",
+			wantBody: `{"config":"{}","status":"active"}`,
+		},
+		{
+			name:     "INSERT multiple rows with cast",
+			sql:      "INSERT INTO settings (data) VALUES ('{\"a\":1}'::jsonb), ('{\"b\":2}'::jsonb)",
+			wantBody: `[{"data":"{\"a\":1}"},{"data":"{\"b\":2}"}]`,
+		},
+		{
+			name:     "INSERT with array and cast",
+			sql:      "INSERT INTO items (tags) VALUES (ARRAY['a', 'b']::text[])",
+			wantBody: `[{"tags":["a","b"]}]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.wantBody, result.Body)
+		})
+	}
+}
+
+func TestRangeFunctionsInWHERE(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name       string
+		sql        string
+		wantMethod string
+		wantPath   string
+		wantParam  string
+		wantValue  string
+	}{
+		{
+			name:       "int4range contains",
+			sql:        "SELECT * FROM bookings WHERE int4range(10, 20) @> capacity",
+			wantMethod: "GET",
+			wantPath:   "/bookings",
+			wantParam:  "capacity",
+			wantValue:  "cs.[10,20)",
+		},
+		{
+			name:       "int8range contains",
+			sql:        "SELECT * FROM events WHERE int8range(1000, 2000) @> attendance",
+			wantMethod: "GET",
+			wantPath:   "/events",
+			wantParam:  "attendance",
+			wantValue:  "cs.[1000,2000)",
+		},
+		{
+			name:       "numrange contains",
+			sql:        "SELECT * FROM products WHERE numrange(0.0, 100.0) @> price",
+			wantMethod: "GET",
+			wantPath:   "/products",
+			wantParam:  "price",
+			wantValue:  "cs.[0.0,100.0)",
+		},
+		{
+			name:       "daterange contains",
+			sql:        "SELECT * FROM bookings WHERE daterange('2024-01-01', '2024-12-31') @> booking_date",
+			wantMethod: "GET",
+			wantPath:   "/bookings",
+			wantParam:  "booking_date",
+			wantValue:  "cs.[2024-01-01,2024-12-31)",
+		},
+		{
+			name:       "range with AND conditions",
+			sql:        "SELECT * FROM events WHERE int4range(10, 50) @> capacity AND status = 'active'",
+			wantMethod: "GET",
+			wantPath:   "/events",
+			wantParam:  "capacity",
+			wantValue:  "cs.[10,50)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMethod, result.Method)
+			assert.Equal(t, tt.wantPath, result.Path)
+			assert.Equal(t, tt.wantValue, result.QueryParams.Get(tt.wantParam))
+		})
+	}
+}
+
+func TestNewFeaturesIntegration(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name       string
+		sql        string
+		wantMethod string
+		checkFunc  func(*testing.T, *ConversionResult)
+	}{
+		{
+			name:       "JSON operators with complex WHERE",
+			sql:        "SELECT id, name FROM users WHERE (data->>'role' = 'admin' AND active = true) OR (data->>'verified' = 'true')",
+			wantMethod: "GET",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "/users", r.Path)
+				assert.Equal(t, "id,name", r.QueryParams.Get("select"))
+				assert.Contains(t, r.QueryParams.Get("or"), "data->>role.eq.admin")
+				assert.Contains(t, r.QueryParams.Get("or"), "data->>verified.eq.true")
+			},
+		},
+		{
+			name:       "TypeCast with IN operator",
+			sql:        "UPDATE profiles SET settings = '{\"theme\":\"dark\"}'::jsonb WHERE user_id IN (1, 2, 3)",
+			wantMethod: "PATCH",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "/profiles", r.Path)
+				assert.JSONEq(t, `{"settings":"{\"theme\":\"dark\"}"}`, r.Body)
+				assert.Equal(t, "in.(1,2,3)", r.QueryParams.Get("user_id"))
+			},
+		},
+		{
+			name:       "Range with ORDER and LIMIT",
+			sql:        "SELECT * FROM events WHERE int4range(10, 100) @> capacity ORDER BY created_at DESC LIMIT 20",
+			wantMethod: "GET",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "/events", r.Path)
+				assert.Equal(t, "cs.[10,100)", r.QueryParams.Get("capacity"))
+				assert.Equal(t, "created_at.desc", r.QueryParams.Get("order"))
+				assert.Equal(t, "20", r.QueryParams.Get("limit"))
+			},
+		},
+		{
+			name:       "JSON with nested paths and multiple operators",
+			sql:        "SELECT * FROM orders WHERE metadata->>'status' = 'shipped' AND metadata->>'priority' > '5' ORDER BY created_at",
+			wantMethod: "GET",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "/orders", r.Path)
+				assert.Equal(t, "eq.shipped", r.QueryParams.Get("metadata->>status"))
+				assert.Equal(t, "gt.5", r.QueryParams.Get("metadata->>priority"))
+				assert.Equal(t, "created_at.asc", r.QueryParams.Get("order"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMethod, result.Method)
+			if tt.checkFunc != nil {
+				tt.checkFunc(t, result)
+			}
+		})
+	}
+}

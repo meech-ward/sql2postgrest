@@ -508,3 +508,176 @@ func TestErrorCases(t *testing.T) {
 		})
 	}
 }
+
+func TestNestedOrAndConditions(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name       string
+		sql        string
+		wantMethod string
+		wantPath   string
+		wantOr     string
+	}{
+		{
+			name:       "basic nested OR with AND groups",
+			sql:        "SELECT * FROM users WHERE (age >= 21 AND status = 'active') OR (role = 'admin' AND verified = true)",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "(and(age.gte.21,status.eq.active),and(role.eq.admin,verified.eq.true))",
+		},
+		{
+			name:       "three-way OR with AND groups",
+			sql:        "SELECT * FROM users WHERE (age < 18 AND status = 'minor') OR (age >= 18 AND age < 65 AND status = 'adult') OR (age >= 65 AND status = 'senior')",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "(or(and(age.lt.18,status.eq.minor),and(and(age.gte.18,age.lt.65),status.eq.adult)),and(age.gte.65,status.eq.senior))",
+		},
+		{
+			name:       "nested OR inside AND (top-level AND with nested OR)",
+			sql:        "SELECT * FROM users WHERE active = true AND (role = 'admin' OR role = 'moderator')",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "(role.eq.admin,role.eq.moderator)",
+		},
+		{
+			name:       "complex nested with IN and LIKE",
+			sql:        "SELECT * FROM products WHERE (category IN ('electronics', 'computers') AND price > 100) OR (name LIKE '%sale%' AND stock > 0)",
+			wantMethod: "GET",
+			wantPath:   "/products",
+			wantOr:     "(and(category.in.(electronics,computers),price.gt.100),and(name.like.*sale*,stock.gt.0))",
+		},
+		{
+			name:       "nested OR with NULL tests",
+			sql:        "SELECT * FROM users WHERE (email IS NOT NULL AND verified = true) OR (phone IS NOT NULL AND sms_verified = true)",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "(and(email.not.is.null,verified.eq.true),and(phone.not.is.null,sms_verified.eq.true))",
+		},
+		{
+			name:       "deeply nested OR with parentheses",
+			sql:        "SELECT * FROM orders WHERE ((status = 'pending' AND priority = 'high') OR (status = 'urgent')) AND customer_id = 123",
+			wantMethod: "GET",
+			wantPath:   "/orders",
+			wantOr:     "(and(status.eq.pending,priority.eq.high),status.eq.urgent)",
+		},
+		{
+			name:       "OR with BETWEEN",
+			sql:        "SELECT * FROM events WHERE (date BETWEEN '2024-01-01' AND '2024-12-31' AND type = 'conference') OR (priority = 'high' AND status = 'confirmed')",
+			wantMethod: "GET",
+			wantPath:   "/events",
+			wantOr:     "(and(date.and(gte.2024-01-01,lte.2024-12-31),type.eq.conference),and(priority.eq.high,status.eq.confirmed))",
+		},
+		{
+			name:       "NOT with nested conditions",
+			sql:        "SELECT * FROM users WHERE NOT (status = 'banned' OR status = 'deleted')",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "not.or(status.eq.banned,status.eq.deleted)",
+		},
+		{
+			name:       "complex multi-level nesting",
+			sql:        "SELECT * FROM users WHERE (role = 'admin' AND (status = 'active' OR status = 'pending')) OR (role = 'user' AND verified = true)",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			wantOr:     "(and(role.eq.admin,or(status.eq.active,status.eq.pending)),and(role.eq.user,verified.eq.true))",
+		},
+		{
+			name:       "OR with all comparison operators",
+			sql:        "SELECT * FROM products WHERE (price < 10 AND stock > 100) OR (price >= 1000 AND rating >= 4.5) OR (discount <> 0)",
+			wantMethod: "GET",
+			wantPath:   "/products",
+			wantOr:     "(or(and(price.lt.10,stock.gt.100),and(price.gte.1000,rating.gte.4.5)),discount.neq.0)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMethod, result.Method)
+			assert.Equal(t, tt.wantPath, result.Path)
+
+			orParam := result.QueryParams.Get("or")
+			if tt.wantOr != "" {
+				assert.Equal(t, tt.wantOr, orParam, "OR parameter mismatch")
+			}
+		})
+	}
+}
+
+func TestNestedOrAndWithOtherClauses(t *testing.T) {
+	conv := NewConverter("https://api.example.com")
+
+	tests := []struct {
+		name       string
+		sql        string
+		wantMethod string
+		wantPath   string
+		checkFunc  func(*testing.T, *ConversionResult)
+	}{
+		{
+			name:       "nested OR with SELECT columns",
+			sql:        "SELECT id, name, email FROM users WHERE (age >= 21 AND status = 'active') OR (role = 'admin' AND verified = true)",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "id,name,email", r.QueryParams.Get("select"))
+				assert.Equal(t, "(and(age.gte.21,status.eq.active),and(role.eq.admin,verified.eq.true))", r.QueryParams.Get("or"))
+			},
+		},
+		{
+			name:       "nested OR with ORDER BY",
+			sql:        "SELECT * FROM users WHERE (age < 18 OR age > 65) AND status = 'active' ORDER BY age DESC",
+			wantMethod: "GET",
+			wantPath:   "/users",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "(age.lt.18,age.gt.65)", r.QueryParams.Get("or"))
+				assert.Equal(t, "eq.active", r.QueryParams.Get("status"))
+				assert.Equal(t, "age.desc", r.QueryParams.Get("order"))
+			},
+		},
+		{
+			name:       "nested OR with LIMIT and OFFSET",
+			sql:        "SELECT * FROM products WHERE (category = 'electronics' AND price > 100) OR (featured = true) LIMIT 20 OFFSET 40",
+			wantMethod: "GET",
+			wantPath:   "/products",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "(and(category.eq.electronics,price.gt.100),featured.eq.true)", r.QueryParams.Get("or"))
+				assert.Equal(t, "20", r.QueryParams.Get("limit"))
+				assert.Equal(t, "40", r.QueryParams.Get("offset"))
+			},
+		},
+		{
+			name:       "UPDATE with nested OR",
+			sql:        "UPDATE users SET status = 'reviewed' WHERE (age >= 21 AND country = 'US') OR (verified = true AND role = 'admin')",
+			wantMethod: "PATCH",
+			wantPath:   "/users",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.JSONEq(t, `{"status":"reviewed"}`, r.Body)
+				assert.Equal(t, "(and(age.gte.21,country.eq.US),and(verified.eq.true,role.eq.admin))", r.QueryParams.Get("or"))
+			},
+		},
+		{
+			name:       "DELETE with nested OR",
+			sql:        "DELETE FROM sessions WHERE (expired = true AND last_activity < '2024-01-01') OR (user_id IS NULL)",
+			wantMethod: "DELETE",
+			wantPath:   "/sessions",
+			checkFunc: func(t *testing.T, r *ConversionResult) {
+				assert.Equal(t, "(and(expired.eq.true,last_activity.lt.2024-01-01),user_id.is.null)", r.QueryParams.Get("or"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert(tt.sql)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMethod, result.Method)
+			assert.Equal(t, tt.wantPath, result.Path)
+			if tt.checkFunc != nil {
+				tt.checkFunc(t, result)
+			}
+		})
+	}
+}

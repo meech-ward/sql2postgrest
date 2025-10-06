@@ -79,3 +79,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+div.cm-editor {
+  background-color: transparent !important;
+}

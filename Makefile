@@ -22,7 +22,12 @@ wasm:
 		curl -s https://raw.githubusercontent.com/golang/go/master/misc/wasm/wasm_exec.js -o wasm/wasm_exec.js; \
 	fi
 	@echo "✅ WASM build complete: wasm/sql2postgrest.wasm"
-	@echo "   Open wasm/example.html in a browser to test"
+	@echo "   Files created:"
+	@echo "   - wasm/sql2postgrest.wasm"
+	@echo "   - wasm/wasm_exec.js"
+	@echo ""
+	@echo "   To test in browser, see examples/react-example/"
+	@echo "   Or use the hook: import { useSQL2PostgREST } from './hooks/useSQL2PostgREST'"
 
 test:
 	go test ./pkg/converter/... -v
