@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useTheme } from '../components/theme-provider';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable';
 import { PageLayout } from '../components/page-layout';
+import { postgrestToSupabase } from '../lib/postgrestToSupabase';
 const CodeMirror = lazy(() => import('@uiw/react-codemirror'));
 import { sql as sqlLang } from '@codemirror/lang-sql';
 import { javascript } from '@codemirror/lang-javascript';
@@ -138,7 +139,8 @@ function Supabase() {
   const handleCopy = async () => {
     if (!result) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      const supabaseCode = postgrestToSupabase(result).code;
+      await navigator.clipboard.writeText(supabaseCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -334,10 +336,10 @@ function Supabase() {
                         }
                       >
                         <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Parsed JSON</p>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
                           <CodeMirror
-                            value={JSON.stringify(result, null, 2)}
-                            extensions={[javascript({ jsx: false, typescript: false })]}
+                            value={postgrestToSupabase(result).code}
+                            extensions={[javascript({ jsx: false, typescript: true })]}
                             theme={isDark ? githubDark : githubLight}
                             editable={false}
                             basicSetup={{
@@ -528,10 +530,10 @@ function Supabase() {
                     }
                   >
                     <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Parsed JSON</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
                       <CodeMirror
-                        value={JSON.stringify(result, null, 2)}
-                        extensions={[javascript({ jsx: false, typescript: false })]}
+                        value={postgrestToSupabase(result).code}
+                        extensions={[javascript({ jsx: false, typescript: true })]}
                         theme={isDark ? githubDark : githubLight}
                         editable={false}
                         basicSetup={{
