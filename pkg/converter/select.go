@@ -30,24 +30,34 @@ func (c *Converter) convertSelect(stmt *ast.SelectStmt) (*ConversionResult, erro
 		Headers:     make(map[string]string),
 	}
 
-	tableName, err := c.extractTableName(stmt.FromClause)
+	tableName, joins, err := c.extractFromClause(stmt.FromClause)
 	if err != nil {
 		return nil, err
 	}
 	result.Path = "/" + tableName
 
-	if err := c.addSelectColumns(result, stmt.TargetList); err != nil {
-		return nil, err
+	if len(joins) > 0 {
+		selectStr, err := c.buildEmbeddedSelect(stmt.TargetList, joins)
+		if err != nil {
+			return nil, err
+		}
+		if selectStr != "" {
+			result.QueryParams.Set("select", selectStr)
+		}
+	} else {
+		if err := c.addSelectColumns(result, stmt.TargetList); err != nil {
+			return nil, err
+		}
 	}
 
 	if stmt.WhereClause != nil {
-		if err := c.addWhereClause(result, stmt.WhereClause); err != nil {
+		if err := c.addWhereClauseWithJoins(result, stmt.WhereClause, joins); err != nil {
 			return nil, err
 		}
 	}
 
 	if stmt.SortClause != nil && len(stmt.SortClause.Items) > 0 {
-		if err := c.addOrderBy(result, stmt.SortClause); err != nil {
+		if err := c.addOrderByWithJoins(result, stmt.SortClause, joins); err != nil {
 			return nil, err
 		}
 	}
@@ -223,6 +233,10 @@ func (c *Converter) convertFunctionCall(fn *ast.FuncCall, alias string) (string,
 }
 
 func (c *Converter) addOrderBy(result *ConversionResult, sortClause *ast.NodeList) error {
+	return c.addOrderByWithJoins(result, sortClause, nil)
+}
+
+func (c *Converter) addOrderByWithJoins(result *ConversionResult, sortClause *ast.NodeList, joins map[string]joinInfo) error {
 	var orderParts []string
 
 	for _, item := range sortClause.Items {
@@ -237,6 +251,7 @@ func (c *Converter) addOrderBy(result *ConversionResult, sortClause *ast.NodeLis
 		}
 
 		colName := c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
 
 		direction := "asc"
 		if sortBy.SortbyDir == ast.SORTBY_DESC {

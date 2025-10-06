@@ -34,6 +34,10 @@ func (c *Converter) addWhereClause(result *ConversionResult, whereClause ast.Nod
 	}
 }
 
+func (c *Converter) addWhereClauseWithJoins(result *ConversionResult, whereClause ast.Node, joins map[string]joinInfo) error {
+	return c.addWhereClause(result, whereClause)
+}
+
 func (c *Converter) addSimpleCondition(result *ConversionResult, expr *ast.A_Expr) error {
 	switch expr.Kind {
 	case ast.AEXPR_IN:
@@ -71,6 +75,7 @@ func (c *Converter) addOperatorCondition(result *ConversionResult, expr *ast.A_E
 	}
 
 	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
 
 	rightValue, err := c.extractWhereValue(expr.Rexpr)
 	if err != nil {
@@ -94,6 +99,7 @@ func (c *Converter) addInCondition(result *ConversionResult, expr *ast.A_Expr) e
 	}
 
 	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
 
 	listNode, ok := expr.Rexpr.(*ast.NodeList)
 	if !ok {
@@ -124,6 +130,7 @@ func (c *Converter) addBetweenCondition(result *ConversionResult, expr *ast.A_Ex
 	}
 
 	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
 
 	listNode, ok := expr.Rexpr.(*ast.NodeList)
 	if !ok || len(listNode.Items) != 2 {
@@ -157,6 +164,7 @@ func (c *Converter) addLikeCondition(result *ConversionResult, expr *ast.A_Expr,
 	}
 
 	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
 
 	pattern, err := c.extractWhereValue(expr.Rexpr)
 	if err != nil {
@@ -239,6 +247,7 @@ func (c *Converter) extractOrCondition(node ast.Node) (string, error) {
 		}
 
 		colName := c.extractColumnName(colRef)
+		colName = c.stripTablePrefix(colName)
 
 		rightValue, err := c.extractWhereValue(expr.Rexpr)
 		if err != nil {
@@ -264,6 +273,7 @@ func (c *Converter) addNullTest(result *ConversionResult, expr *ast.NullTest) er
 	}
 
 	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
 
 	if expr.Nulltesttype == ast.IS_NULL {
 		result.QueryParams.Add(colName, "is.null")

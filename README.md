@@ -87,6 +87,10 @@ make install
 # DELETE
 ./sql2postgrest "DELETE FROM users WHERE id = 10"
 → {"method":"DELETE","url":"http://localhost:3000/users?id=eq.10"}
+
+# JOIN (converts to embedded resources)
+./sql2postgrest "SELECT a.name, b.title FROM authors a LEFT JOIN books b ON b.author_id = a.id"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name,books(title)"}
 ```
 
 ### CLI Options
@@ -140,6 +144,30 @@ Output:
 {"method":"GET","url":"http://localhost:3000/users?age=gte.18&age=lte.65&created_at=gt.2024-01-01&limit=20&order=created_at.desc&select=id,name,email&status=in.(active,pending)"}
 ```
 
+### JOIN Examples
+
+JOINs are automatically converted to PostgREST's [embedded resources](https://postgrest.org/en/stable/references/api/resource_embedding.html):
+
+```bash
+# Simple JOIN
+./sql2postgrest "SELECT a.name, b.title FROM authors a LEFT JOIN books b ON b.author_id = a.id"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name,books(title)"}
+
+# JOIN with multiple columns
+./sql2postgrest "SELECT a.id, a.name, b.title, b.published_date FROM authors a JOIN books b ON b.author_id = a.id"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=id,name,books(title,published_date)"}
+
+# JOIN with WHERE, ORDER BY, and LIMIT
+./sql2postgrest "SELECT u.email, o.amount FROM users u JOIN orders o ON o.user_id = u.id WHERE u.active = true ORDER BY u.name LIMIT 10"
+→ {"method":"GET","url":"http://localhost:3000/users?active=eq.true&limit=10&order=name.asc&select=email,orders(amount)"}
+
+# JOIN with column aliases
+./sql2postgrest "SELECT a.name AS author_name, b.title AS book_title FROM authors a JOIN books b ON b.author_id = a.id"
+→ {"method":"GET","url":"http://localhost:3000/authors?select=name:author_name,books(title:book_title)"}
+```
+
+**Note**: The left-most table in the JOIN becomes the base resource path. All other joined tables become embedded resources.
+
 ## Supported SQL Features
 
 ### ✅ SELECT Queries
@@ -156,6 +184,7 @@ Output:
 - **ORDER BY**: ASC/DESC, NULLS FIRST/LAST
 - **LIMIT / OFFSET**: Pagination
 - **Aggregate functions**: COUNT, SUM, AVG, MIN, MAX
+- **JOINs**: LEFT JOIN, INNER JOIN, RIGHT JOIN (converts to PostgREST embedded resources)
 
 ### ✅ INSERT Queries
 
@@ -193,6 +222,7 @@ Output:
 | `ORDER BY x DESC` | `order=x.desc` | `order=created_at.desc` |
 | `LIMIT n` | `limit=n` | `limit=10` |
 | `OFFSET n` | `offset=n` | `offset=20` |
+| `LEFT/INNER/RIGHT JOIN` | `select=col,table(col)` | `select=name,books(title)` |
 
 ## Using as a Go Library
 
@@ -473,13 +503,13 @@ sql2postgrest/
 
 ### Currently Not Supported
 
-- **JOINs** - Planned (will map to PostgREST embedded resources)
 - **Subqueries** - Not supported
 - **CTEs (WITH)** - Not supported
-- **GROUP BY / HAVING** - Not supported
+- **GROUP BY / HAVING** - Not supported (use PostgREST's aggregate functions instead)
 - **Window functions** - Not supported
 - **NOT IN** - Planned
 - **Complex expressions** - Function calls in WHERE not yet supported
+- **Aggregate functions with JOINs** - Not supported (use PostgREST's native aggregation)
 
 ### By Design (PostgREST Limitations)
 
