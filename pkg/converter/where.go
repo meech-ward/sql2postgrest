@@ -41,15 +41,41 @@ func (c *Converter) addWhereClauseWithJoins(result *ConversionResult, whereClaus
 func (c *Converter) addSimpleCondition(result *ConversionResult, expr *ast.A_Expr) error {
 	switch expr.Kind {
 	case ast.AEXPR_IN:
-		return c.addInCondition(result, expr)
+		negate := false
+		if expr.Name != nil && len(expr.Name.Items) > 0 {
+			if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+				if opNode.SVal == "<>" {
+					negate = true
+				}
+			}
+		}
+		return c.addInCondition(result, expr, negate)
 	case ast.AEXPR_BETWEEN:
 		return c.addBetweenCondition(result, expr, false)
 	case ast.AEXPR_NOT_BETWEEN:
 		return c.addBetweenCondition(result, expr, true)
+	case ast.AEXPR_DISTINCT:
+		return c.addDistinctCondition(result, expr)
 	case ast.AEXPR_LIKE:
-		return c.addLikeCondition(result, expr, false, false)
+		negate := false
+		if expr.Name != nil && len(expr.Name.Items) > 0 {
+			if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+				if opNode.SVal == "!~~" {
+					negate = true
+				}
+			}
+		}
+		return c.addLikeCondition(result, expr, false, negate)
 	case ast.AEXPR_ILIKE:
-		return c.addLikeCondition(result, expr, true, false)
+		negate := false
+		if expr.Name != nil && len(expr.Name.Items) > 0 {
+			if opNode, ok := expr.Name.Items[0].(*ast.String); ok {
+				if opNode.SVal == "!~~*" {
+					negate = true
+				}
+			}
+		}
+		return c.addLikeCondition(result, expr, true, negate)
 	case ast.AEXPR_OP:
 		return c.addOperatorCondition(result, expr)
 	default:
@@ -68,6 +94,10 @@ func (c *Converter) addOperatorCondition(result *ConversionResult, expr *ast.A_E
 	}
 
 	operator := opNode.SVal
+
+	if operator == "@@" {
+		return c.addFullTextSearch(result, expr)
+	}
 
 	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
 	if !ok {
@@ -92,7 +122,7 @@ func (c *Converter) addOperatorCondition(result *ConversionResult, expr *ast.A_E
 	return nil
 }
 
-func (c *Converter) addInCondition(result *ConversionResult, expr *ast.A_Expr) error {
+func (c *Converter) addInCondition(result *ConversionResult, expr *ast.A_Expr, negate bool) error {
 	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
 	if !ok {
 		return fmt.Errorf("IN: left side must be a column reference")
@@ -119,7 +149,11 @@ func (c *Converter) addInCondition(result *ConversionResult, expr *ast.A_Expr) e
 		return fmt.Errorf("IN: empty value list")
 	}
 
-	result.QueryParams.Add(colName, "in.("+strings.Join(values, ",")+")")
+	op := "in.(" + strings.Join(values, ",") + ")"
+	if negate {
+		op = "not." + op
+	}
+	result.QueryParams.Add(colName, op)
 	return nil
 }
 
@@ -197,6 +231,103 @@ func (c *Converter) convertLikePattern(pattern string) string {
 	return pattern
 }
 
+func (c *Converter) addDistinctCondition(result *ConversionResult, expr *ast.A_Expr) error {
+	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+	if !ok {
+		return fmt.Errorf("IS DISTINCT FROM: left side must be a column reference")
+	}
+
+	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
+
+	rightValue, err := c.extractWhereValue(expr.Rexpr)
+	if err != nil {
+		return fmt.Errorf("IS DISTINCT FROM: failed to extract value: %w", err)
+	}
+
+	result.QueryParams.Add(colName, "isdistinct."+rightValue)
+	return nil
+}
+
+func (c *Converter) addFullTextSearch(result *ConversionResult, expr *ast.A_Expr) error {
+	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+	if !ok {
+		return fmt.Errorf("FTS: left side must be a column reference")
+	}
+
+	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
+
+	fn, ok := expr.Rexpr.(*ast.FuncCall)
+	if !ok {
+		return fmt.Errorf("FTS: right side must be a function call (to_tsquery, plainto_tsquery, etc.)")
+	}
+
+	if fn.Funcname == nil || len(fn.Funcname.Items) == 0 {
+		return fmt.Errorf("FTS: function name is empty")
+	}
+
+	funcNameNode, ok := fn.Funcname.Items[len(fn.Funcname.Items)-1].(*ast.String)
+	if !ok {
+		return fmt.Errorf("FTS: invalid function name type")
+	}
+
+	funcName := strings.ToLower(funcNameNode.SVal)
+
+	var ftsOp string
+	var searchTerm string
+	var language string
+
+	switch funcName {
+	case "to_tsquery":
+		ftsOp = "fts"
+	case "plainto_tsquery":
+		ftsOp = "plfts"
+	case "phraseto_tsquery":
+		ftsOp = "phfts"
+	case "websearch_to_tsquery":
+		ftsOp = "wfts"
+	default:
+		return fmt.Errorf("FTS: unsupported function: %s (use to_tsquery, plainto_tsquery, phraseto_tsquery, or websearch_to_tsquery)", funcName)
+	}
+
+	if fn.Args == nil || len(fn.Args.Items) == 0 {
+		return fmt.Errorf("FTS: %s requires at least one argument", funcName)
+	}
+
+	if len(fn.Args.Items) == 1 {
+		term, err := c.extractWhereValue(fn.Args.Items[0])
+		if err != nil {
+			return fmt.Errorf("FTS: failed to extract search term: %w", err)
+		}
+		searchTerm = term
+	} else if len(fn.Args.Items) == 2 {
+		lang, err := c.extractWhereValue(fn.Args.Items[0])
+		if err != nil {
+			return fmt.Errorf("FTS: failed to extract language: %w", err)
+		}
+		language = lang
+
+		term, err := c.extractWhereValue(fn.Args.Items[1])
+		if err != nil {
+			return fmt.Errorf("FTS: failed to extract search term: %w", err)
+		}
+		searchTerm = term
+	} else {
+		return fmt.Errorf("FTS: %s accepts 1 or 2 arguments", funcName)
+	}
+
+	var value string
+	if language != "" {
+		value = ftsOp + "(" + language + ")." + searchTerm
+	} else {
+		value = ftsOp + "." + searchTerm
+	}
+
+	result.QueryParams.Add(colName, value)
+	return nil
+}
+
 func (c *Converter) addBoolExpr(result *ConversionResult, expr *ast.BoolExpr) error {
 	switch expr.Boolop {
 	case ast.AND_EXPR:
@@ -220,7 +351,10 @@ func (c *Converter) addBoolExpr(result *ConversionResult, expr *ast.BoolExpr) er
 		return nil
 
 	case ast.NOT_EXPR:
-		return fmt.Errorf("NOT expressions not yet supported")
+		if len(expr.Args.Items) != 1 {
+			return fmt.Errorf("NOT expression must have exactly one argument")
+		}
+		return c.addNotExpr(result, expr.Args.Items[0])
 
 	default:
 		return fmt.Errorf("unsupported boolean operation: %v", expr.Boolop)
@@ -280,9 +414,65 @@ func (c *Converter) addNullTest(result *ConversionResult, expr *ast.NullTest) er
 	} else if expr.Nulltesttype == ast.IS_NOT_NULL {
 		result.QueryParams.Add(colName, "not.is.null")
 	} else {
-		return fmt.Errorf("unsupported NULL test type: %v", expr.Nulltesttype)
+		return fmt.Errorf("unsupported NULL test type")
 	}
 
+	return nil
+}
+
+func (c *Converter) addNotExpr(result *ConversionResult, node ast.Node) error {
+	switch expr := node.(type) {
+	case *ast.ParenExpr:
+		return c.addNotExpr(result, expr.Expr)
+	case *ast.A_Expr:
+		switch expr.Kind {
+		case ast.AEXPR_IN:
+			return c.addInCondition(result, expr, true)
+		case ast.AEXPR_LIKE:
+			return c.addLikeCondition(result, expr, false, true)
+		case ast.AEXPR_ILIKE:
+			return c.addLikeCondition(result, expr, true, true)
+		case ast.AEXPR_OP:
+			return c.addOperatorConditionNegated(result, expr)
+		default:
+			return fmt.Errorf("unsupported NOT expression kind: %d", expr.Kind)
+		}
+	default:
+		return fmt.Errorf("unsupported NOT expression type: %T", node)
+	}
+}
+
+func (c *Converter) addOperatorConditionNegated(result *ConversionResult, expr *ast.A_Expr) error {
+	if expr.Name == nil || len(expr.Name.Items) == 0 {
+		return fmt.Errorf("operator name is empty")
+	}
+
+	opNode, ok := expr.Name.Items[0].(*ast.String)
+	if !ok {
+		return fmt.Errorf("invalid operator type")
+	}
+
+	operator := opNode.SVal
+
+	colRef, ok := expr.Lexpr.(*ast.ColumnRef)
+	if !ok {
+		return fmt.Errorf("left side of operator must be a column reference")
+	}
+
+	colName := c.extractColumnName(colRef)
+	colName = c.stripTablePrefix(colName)
+
+	rightValue, err := c.extractWhereValue(expr.Rexpr)
+	if err != nil {
+		return fmt.Errorf("failed to extract right value: %w", err)
+	}
+
+	postgrestOp, err := c.mapOperator(operator, rightValue)
+	if err != nil {
+		return err
+	}
+
+	result.QueryParams.Add(colName, "not."+postgrestOp)
 	return nil
 }
 
@@ -308,6 +498,30 @@ func (c *Converter) mapOperator(sqlOp string, value string) (string, error) {
 		return "not.like." + value, nil
 	case "!~~*":
 		return "not.ilike." + value, nil
+	case "~":
+		return "match." + value, nil
+	case "~*":
+		return "imatch." + value, nil
+	case "!~":
+		return "not.match." + value, nil
+	case "!~*":
+		return "not.imatch." + value, nil
+	case "@>":
+		return "cs." + value, nil
+	case "<@":
+		return "cd." + value, nil
+	case "&&":
+		return "ov." + value, nil
+	case "<<":
+		return "sl." + value, nil
+	case ">>":
+		return "sr." + value, nil
+	case "&<":
+		return "nxr." + value, nil
+	case "&>":
+		return "nxl." + value, nil
+	case "-|-":
+		return "adj." + value, nil
 	default:
 		return "", fmt.Errorf("unsupported operator: %s", sqlOp)
 	}
@@ -319,6 +533,8 @@ func (c *Converter) extractWhereValue(node ast.Node) (string, error) {
 		return c.extractConstValue(val)
 	case *ast.ColumnRef:
 		return c.extractColumnName(val), nil
+	case *ast.ArrayExpr:
+		return c.extractArrayValue(val)
 	case *ast.A_Expr:
 		if val.Name != nil && len(val.Name.Items) > 0 {
 			if opNode, ok := val.Name.Items[0].(*ast.String); ok && opNode.SVal == "-" {
@@ -328,6 +544,8 @@ func (c *Converter) extractWhereValue(node ast.Node) (string, error) {
 			}
 		}
 		return "", fmt.Errorf("complex expressions in WHERE not supported")
+	case *ast.FuncCall:
+		return c.extractFunctionValue(val)
 	default:
 		return "", fmt.Errorf("unsupported value type in WHERE: %T", node)
 	}
@@ -356,5 +574,53 @@ func (c *Converter) extractConstValue(aConst *ast.A_Const) (string, error) {
 		return "null", nil
 	default:
 		return "", fmt.Errorf("unsupported const type: %T", aConst.Val)
+	}
+}
+
+func (c *Converter) extractArrayValue(arr *ast.ArrayExpr) (string, error) {
+	if arr.Elements == nil || len(arr.Elements.Items) == 0 {
+		return "{}", nil
+	}
+
+	var values []string
+	for _, elem := range arr.Elements.Items {
+		val, err := c.extractWhereValue(elem)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract array element: %w", err)
+		}
+		values = append(values, val)
+	}
+
+	return "{" + strings.Join(values, ",") + "}", nil
+}
+
+func (c *Converter) extractFunctionValue(fn *ast.FuncCall) (string, error) {
+	if fn.Funcname == nil || len(fn.Funcname.Items) == 0 {
+		return "", fmt.Errorf("function name is empty")
+	}
+
+	funcNameNode, ok := fn.Funcname.Items[len(fn.Funcname.Items)-1].(*ast.String)
+	if !ok {
+		return "", fmt.Errorf("invalid function name type")
+	}
+
+	funcName := strings.ToLower(funcNameNode.SVal)
+
+	switch funcName {
+	case "int4range", "int8range", "numrange", "tsrange", "tstzrange", "daterange":
+		if fn.Args == nil || len(fn.Args.Items) != 2 {
+			return "", fmt.Errorf("%s requires exactly 2 arguments", funcName)
+		}
+		arg1, err := c.extractWhereValue(fn.Args.Items[0])
+		if err != nil {
+			return "", err
+		}
+		arg2, err := c.extractWhereValue(fn.Args.Items[1])
+		if err != nil {
+			return "", err
+		}
+		return "(" + arg1 + "," + arg2 + ")", nil
+	default:
+		return "", fmt.Errorf("unsupported function in WHERE: %s", funcName)
 	}
 }

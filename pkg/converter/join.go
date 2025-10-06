@@ -228,6 +228,13 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 				embeds[tableName].columns = append(embeds[tableName].columns, funcStr)
 			}
 
+		case *ast.TypeCast:
+			castStr, err := c.convertTypeCastForJoin(val, resTarget.Name, joins)
+			if err != nil {
+				return "", err
+			}
+			baseColumns = append(baseColumns, castStr)
+
 		default:
 			return "", fmt.Errorf("unsupported SELECT expression type in JOIN: %T", val)
 		}
@@ -275,6 +282,9 @@ func (c *Converter) convertFunctionCallForJoin(fn *ast.FuncCall, alias string, j
 	}
 
 	if !supportedAggregates[funcName] {
+		if funcName == "json_agg" || funcName == "json_build_object" {
+			return "", "", fmt.Errorf("json_agg/json_build_object not supported - PostgREST handles JSON automatically via embedded resources. Use: GET /authors?select=name,books(title,published_date) instead")
+		}
 		return "", "", fmt.Errorf("unsupported aggregate function in JOIN: %s (only count, sum, avg, max, min are supported)", funcName)
 	}
 
@@ -345,4 +355,35 @@ func (c *Converter) convertFunctionCallForJoin(fn *ast.FuncCall, alias string, j
 	}
 
 	return targetTable, result, nil
+}
+
+func (c *Converter) convertTypeCastForJoin(tc *ast.TypeCast, alias string, joins map[string]joinInfo) (string, error) {
+	if tc.Arg == nil {
+		return "", fmt.Errorf("typecast has no argument")
+	}
+
+	colRef, ok := tc.Arg.(*ast.ColumnRef)
+	if !ok {
+		return "", fmt.Errorf("unsupported typecast argument type in JOIN: %T", tc.Arg)
+	}
+
+	colName := c.extractColumnName(colRef)
+
+	parts := strings.Split(colName, ".")
+	if len(parts) == 2 {
+		colName = parts[1]
+	}
+
+	typeName, err := c.extractTypeName(tc.TypeName)
+	if err != nil {
+		return "", err
+	}
+
+	result := colName + "::" + typeName
+
+	if alias != "" {
+		result = result + ":" + alias
+	}
+
+	return result, nil
 }

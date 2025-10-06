@@ -1061,18 +1061,18 @@ func TestJoinsNotSupported(t *testing.T) {
 	}{
 		{
 			name:        "json_agg not supported",
-			sql:         "SELECT a.name, json_agg(b.title) FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.name",
-			wantErrText: "unsupported aggregate function",
+			sql:         "SELECT a.name, json_agg(b.title) AS books FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.id",
+			wantErrText: "json_agg/json_build_object not supported",
 		},
 		{
 			name:        "json_build_object not supported",
-			sql:         "SELECT o.id, json_build_object('name', c.name) AS customer FROM orders o LEFT JOIN customers c ON c.id = o.customer_id",
-			wantErrText: "unsupported aggregate function",
+			sql:         "SELECT a.name, json_build_object('title', b.title) AS book FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.id",
+			wantErrText: "json_agg/json_build_object not supported",
 		},
 		{
 			name:        "complex nested json aggregation not supported",
 			sql:         "SELECT o.id, json_build_object('name', c.name) AS customer, json_agg(json_build_object('quantity', oi.quantity, 'product', json_build_object('name', p.name))) AS items FROM orders o LEFT JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id LEFT JOIN products p ON p.id = oi.product_id GROUP BY o.id, c.name",
-			wantErrText: "unsupported aggregate function",
+			wantErrText: "json_agg/json_build_object not supported",
 		},
 	}
 

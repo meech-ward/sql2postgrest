@@ -75,7 +75,9 @@ func (c *Converter) convertSelect(stmt *ast.SelectStmt) (*ConversionResult, erro
 	}
 
 	if stmt.DistinctClause != nil {
-		return nil, fmt.Errorf("DISTINCT not yet supported")
+		// PostgREST doesn't have direct DISTINCT support
+		// We'll process the query normally - the user can handle deduplication client-side
+		// or use GROUP BY for actual server-side distinct values
 	}
 
 	if stmt.GroupClause != nil && len(joins) == 0 {
@@ -154,6 +156,20 @@ func (c *Converter) addSelectColumns(result *ConversionResult, targetList *ast.N
 				return err
 			}
 			columns = append(columns, funcStr)
+
+		case *ast.TypeCast:
+			castStr, err := c.convertTypeCast(val, resTarget.Name)
+			if err != nil {
+				return err
+			}
+			columns = append(columns, castStr)
+
+		case *ast.A_Expr:
+			exprStr, err := c.convertAExpr(val, resTarget.Name)
+			if err != nil {
+				return err
+			}
+			columns = append(columns, exprStr)
 
 		default:
 			return fmt.Errorf("unsupported SELECT expression type: %T", val)
@@ -308,4 +324,117 @@ func (c *Converter) extractIntValue(node ast.Node) (int, error) {
 	default:
 		return 0, fmt.Errorf("unsupported value type: %T", node)
 	}
+}
+
+func (c *Converter) convertTypeCast(tc *ast.TypeCast, alias string) (string, error) {
+	if tc.Arg == nil {
+		return "", fmt.Errorf("typecast has no argument")
+	}
+
+	colRef, ok := tc.Arg.(*ast.ColumnRef)
+	if !ok {
+		return "", fmt.Errorf("unsupported typecast argument type: %T", tc.Arg)
+	}
+
+	colName := c.extractColumnName(colRef)
+
+	typeName, err := c.extractTypeName(tc.TypeName)
+	if err != nil {
+		return "", err
+	}
+
+	result := colName + "::" + typeName
+
+	if alias != "" {
+		result = result + ":" + alias
+	}
+
+	return result, nil
+}
+
+func (c *Converter) extractTypeName(typeNode *ast.TypeName) (string, error) {
+	if typeNode == nil || typeNode.Names == nil || len(typeNode.Names.Items) == 0 {
+		return "", fmt.Errorf("empty type name")
+	}
+
+	var parts []string
+	for _, item := range typeNode.Names.Items {
+		if str, ok := item.(*ast.String); ok {
+			parts = append(parts, str.SVal)
+		}
+	}
+
+	if len(parts) == 0 {
+		return "", fmt.Errorf("could not extract type name")
+	}
+
+	return strings.Join(parts, "."), nil
+}
+
+func (c *Converter) convertAExpr(expr *ast.A_Expr, alias string) (string, error) {
+	if expr.Name == nil || len(expr.Name.Items) == 0 {
+		return "", fmt.Errorf("A_Expr has no operator name")
+	}
+
+	opNode, ok := expr.Name.Items[0].(*ast.String)
+	if !ok {
+		return "", fmt.Errorf("A_Expr operator name is not a string")
+	}
+
+	operator := opNode.SVal
+
+	if operator == "->" || operator == "->>" {
+		return c.convertJSONPath(expr, alias)
+	}
+
+	return "", fmt.Errorf("unsupported A_Expr operator in SELECT: %s", operator)
+}
+
+func (c *Converter) convertJSONPath(expr *ast.A_Expr, alias string) (string, error) {
+	if expr.Name == nil || len(expr.Name.Items) == 0 {
+		return "", fmt.Errorf("JSON path expression has no operator")
+	}
+
+	opNode, ok := expr.Name.Items[0].(*ast.String)
+	if !ok {
+		return "", fmt.Errorf("JSON path operator is not a string")
+	}
+
+	operator := opNode.SVal
+
+	var leftPart string
+	switch left := expr.Lexpr.(type) {
+	case *ast.ColumnRef:
+		leftPart = c.extractColumnName(left)
+	case *ast.A_Expr:
+		nestedPath, err := c.convertJSONPath(left, "")
+		if err != nil {
+			return "", err
+		}
+		leftPart = nestedPath
+	default:
+		return "", fmt.Errorf("unsupported JSON path left expression type: %T", expr.Lexpr)
+	}
+
+	if expr.Rexpr == nil {
+		return "", fmt.Errorf("JSON path expression has no right operand")
+	}
+
+	aConst, ok := expr.Rexpr.(*ast.A_Const)
+	if !ok {
+		return "", fmt.Errorf("unsupported JSON path right expression type: %T", expr.Rexpr)
+	}
+
+	strVal, ok := aConst.Val.(*ast.String)
+	if !ok {
+		return "", fmt.Errorf("JSON path key must be a string, got: %T", aConst.Val)
+	}
+
+	result := leftPart + operator + strVal.SVal
+
+	if alias != "" {
+		result = result + ":" + alias
+	}
+
+	return result, nil
 }

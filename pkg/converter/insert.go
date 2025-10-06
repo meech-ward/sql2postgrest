@@ -100,7 +100,9 @@ func (c *Converter) convertInsert(stmt *ast.InsertStmt) (*ConversionResult, erro
 	result.Body = string(bodyBytes)
 
 	if stmt.OnConflictClause != nil {
-		return nil, fmt.Errorf("ON CONFLICT not yet supported")
+		if err := c.addOnConflict(result, stmt.OnConflictClause); err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
@@ -138,4 +140,53 @@ func (c *Converter) extractConstValueInterface(aConst *ast.A_Const) (interface{}
 	default:
 		return nil, fmt.Errorf("unsupported const type: %T", aConst.Val)
 	}
+}
+
+func (c *Converter) addOnConflict(result *ConversionResult, onConflict *ast.OnConflictClause) error {
+	if onConflict.Infer == nil || onConflict.Infer.IndexElems == nil || len(onConflict.Infer.IndexElems.Items) == 0 {
+		return fmt.Errorf("ON CONFLICT requires conflict target columns")
+	}
+
+	var conflictColumns []string
+	for _, elem := range onConflict.Infer.IndexElems.Items {
+		indexElem, ok := elem.(*ast.IndexElem)
+		if !ok {
+			return fmt.Errorf("unsupported index element type: %T", elem)
+		}
+		if indexElem.Name != "" {
+			conflictColumns = append(conflictColumns, indexElem.Name)
+		}
+	}
+
+	if len(conflictColumns) > 0 {
+		result.QueryParams.Set("on_conflict", joinStrings(conflictColumns, ","))
+	}
+
+	existingPrefer := result.Headers["Prefer"]
+	if onConflict.Action == ast.ONCONFLICT_UPDATE {
+		if existingPrefer != "" {
+			result.Headers["Prefer"] = existingPrefer + ",resolution=merge-duplicates"
+		} else {
+			result.Headers["Prefer"] = "resolution=merge-duplicates"
+		}
+	} else if onConflict.Action == ast.ONCONFLICT_NOTHING {
+		if existingPrefer != "" {
+			result.Headers["Prefer"] = existingPrefer + ",resolution=ignore-duplicates"
+		} else {
+			result.Headers["Prefer"] = "resolution=ignore-duplicates"
+		}
+	}
+
+	return nil
+}
+
+func joinStrings(strs []string, sep string) string {
+	result := ""
+	for i, s := range strs {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
 }

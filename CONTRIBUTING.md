@@ -1,327 +1,110 @@
 # Contributing to sql2postgrest
 
-Thank you for your interest in contributing! This document provides guidelines and instructions for contributing.
-
-## Development Setup
-
-### Prerequisites
-
-- Go 1.21 or later
-- Git
-- Make (optional, but recommended)
-
-### Getting Started
-
-1. **Fork and clone the repository:**
+## Quick Start
 
 ```bash
+# Clone and setup
 git clone https://github.com/yourusername/sql2postgrest.git
 cd sql2postgrest
-```
-
-2. **Install dependencies:**
-
-```bash
 go mod download
-```
 
-3. **Run tests:**
-
-```bash
-make test
-# or
-go test ./pkg/converter/... -v
-```
-
-4. **Build the CLI:**
-
-```bash
-make build
-# or
+# Build and test
 go build -o bin/sql2postgrest ./cmd/sql2postgrest
+go test ./pkg/converter/... -v
 ```
 
 ## Project Structure
 
 ```
-sql2postgrest/
-├── pkg/converter/          # Core conversion library
-│   ├── converter.go        # Main converter & types
-│   ├── select.go           # SELECT query handling
-│   ├── insert.go           # INSERT query handling
-│   ├── update.go           # UPDATE query handling
-│   ├── delete.go           # DELETE query handling
-│   ├── where.go            # WHERE clause processing
-│   └── converter_test.go   # Comprehensive tests
-├── cmd/sql2postgrest/      # CLI tool
-│   └── main.go
-├── examples/               # Usage examples
-└── README.md
+pkg/converter/
+├── converter.go        # Main converter & types
+├── select.go          # SELECT queries
+├── insert.go          # INSERT queries  
+├── update.go          # UPDATE queries
+├── delete.go          # DELETE queries
+├── where.go           # WHERE clause & operators
+├── join.go            # JOINs & embedded resources
+└── *_test.go          # Tests (200+ test cases)
 ```
 
-## Making Changes
+## Adding Features
 
-### 1. Create a Branch
+### 1. Add the operator mapping
 
-```bash
-git checkout -b feature/my-new-feature
-# or
-git checkout -b fix/bug-description
-```
-
-### 2. Make Your Changes
-
-- Keep changes focused and atomic
-- Follow existing code style
-- Add tests for new functionality
-- Update documentation as needed
-
-### 3. Write Tests
-
-All new features must include tests:
+**File**: `pkg/converter/where.go`
 
 ```go
-func TestMyNewFeature(t *testing.T) {
-    conv := NewConverter("https://api.example.com")
-    
-    result, err := conv.Convert("SELECT * FROM table WHERE ...")
-    require.NoError(t, err)
-    
-    assert.Equal(t, "expected_value", result.SomeField)
+func (c *Converter) mapOperator(sqlOp string, value string) (string, error) {
+    switch sqlOp {
+    case "~":
+        return "match." + value, nil
+    // ... add your operator
+    }
 }
 ```
 
-### 4. Run Tests
+### 2. Add tests
 
-```bash
-# Run all tests
-make test
+**File**: `pkg/converter/advanced_features_test.go` or similar
 
-# Run tests with coverage
-make test-coverage
-
-# Run specific tests
-go test ./pkg/converter/... -run TestMyNewFeature -v
+```go
+func TestNewOperator(t *testing.T) {
+    conv := NewConverter("https://api.example.com")
+    result, err := conv.Convert("SELECT * FROM users WHERE email ~ '^[A-Z]'")
+    require.NoError(t, err)
+    assert.Equal(t, "match.^[A-Z]", result.QueryParams.Get("email"))
+}
 ```
 
-### 5. Format Code
+### 3. Update documentation
+
+- Add to README.md feature list
+- Add to operator mapping table
+- Add usage example
+
+### 4. Verify
 
 ```bash
-make fmt
-# or
+go test ./pkg/converter/... -v
 go fmt ./...
 ```
 
-### 6. Commit Changes
+## Code Style
 
-Use clear, descriptive commit messages:
+- **Naming**: CamelCase for exported, camelCase for private
+- **Errors**: Always wrap with context: `fmt.Errorf("desc: %w", err)`
+- **Testing**: Use `require.NoError()` and `assert.Equal()`
+- **Format**: Run `go fmt ./...` before committing
 
-```bash
-git add .
-git commit -m "Add support for NOT IN operator"
-```
-
-Good commit message format:
-- Start with a verb in present tense ("Add", "Fix", "Update", "Remove")
-- Keep first line under 50 characters
-- Add detailed description if needed
-
-### 7. Push and Create PR
+## Testing
 
 ```bash
-git push origin feature/my-new-feature
-```
+# All tests
+go test ./pkg/converter/... -v
 
-Then create a Pull Request on GitHub.
+# Specific test
+go test ./pkg/converter/... -run TestName -v
 
-## Adding New SQL Features
-
-### Example: Adding NOT IN Support
-
-1. **Update where.go:**
-
-```go
-func (c *Converter) addSimpleCondition(result *ConversionResult, expr *ast.A_Expr) error {
-    switch expr.Kind {
-    case ast.AEXPR_NOT_IN:
-        return c.addNotInCondition(result, expr)
-    // ... existing cases
-    }
-}
-
-func (c *Converter) addNotInCondition(result *ConversionResult, expr *ast.A_Expr) error {
-    // Implementation
-}
-```
-
-2. **Add tests in converter_test.go:**
-
-```go
-func TestNotInOperator(t *testing.T) {
-    conv := NewConverter("https://api.example.com")
-    
-    result, err := conv.Convert("SELECT * FROM users WHERE id NOT IN (1, 2, 3)")
-    require.NoError(t, err)
-    
-    assert.Equal(t, "not.in.(1,2,3)", result.QueryParams.Get("id"))
-}
-```
-
-3. **Update README.md** with the new feature
-
-4. **Run tests:**
-
-```bash
-make test
-```
-
-## Code Style Guidelines
-
-### General Principles
-
-- **Simplicity**: Prefer simple, readable code over clever solutions
-- **Clarity**: Use descriptive names for variables and functions
-- **Consistency**: Follow existing patterns in the codebase
-- **Testing**: Every feature must have tests
-
-### Naming Conventions
-
-- **Functions**: CamelCase (`extractColumnName`)
-- **Exported Functions**: Start with capital (`NewConverter`)
-- **Private Functions**: Start with lowercase (`addWhereClause`)
-- **Variables**: Descriptive names (`columnName` not `cn`)
-- **Test Functions**: Start with `Test` (`TestInOperator`)
-
-### Error Handling
-
-Always provide context in errors:
-
-```go
-// Good
-return fmt.Errorf("failed to extract column name: %w", err)
-
-// Bad
-return err
-```
-
-### Comments
-
-- Use comments to explain **why**, not **what**
-- Document exported functions and types
-- Keep comments up-to-date with code
-
-## Testing Guidelines
-
-### Test Coverage
-
-- Aim for high test coverage (current: 66+ tests)
-- Test happy paths and error cases
-- Test edge cases (NULL, negative numbers, empty strings, etc.)
-
-### Test Structure
-
-Use table-driven tests for multiple cases:
-
-```go
-func TestOperators(t *testing.T) {
-    conv := NewConverter("https://api.example.com")
-    
-    tests := []struct {
-        name    string
-        sql     string
-        wantURL string
-    }{
-        {
-            name:    "equal operator",
-            sql:     "SELECT * FROM users WHERE age = 18",
-            wantURL: "/users?age=eq.18",
-        },
-        // ... more test cases
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            result, err := conv.Convert(tt.sql)
-            require.NoError(t, err)
-            assert.Contains(t, result.Path, tt.wantURL)
-        })
-    }
-}
-```
-
-### Running Specific Tests
-
-```bash
-# Run specific test function
-go test ./pkg/converter/... -run TestInOperator -v
-
-# Run tests matching pattern
-go test ./pkg/converter/... -run "Test.*Operator" -v
-
-# Run with coverage
+# With coverage
 go test ./pkg/converter/... -cover
 ```
 
-## Documentation
+## Pull Requests
 
-### Update README.md
+1. Ensure all tests pass
+2. Update documentation
+3. Run `go fmt ./...`
+4. Clear commit message:
+   - `feat: Add regex pattern matching`
+   - `fix: Handle NULL in INSERT`
+   - `docs: Update README examples`
 
-When adding features, update:
-- Feature list
-- Examples section
-- Operator mapping table
-- Limitations section (remove if you're implementing it!)
+## Questions?
 
-### Add Examples
-
-Create example code in `examples/` directory demonstrating your feature.
-
-## Pull Request Process
-
-1. **Ensure all tests pass**
-2. **Update documentation**
-3. **Add examples if applicable**
-4. **Fill out PR template**
-5. **Wait for review**
-
-### PR Title Format
-
-- `feat: Add NOT IN operator support`
-- `fix: Handle NULL values in INSERT`
-- `docs: Update README with new examples`
-- `test: Add tests for BETWEEN operator`
-
-### PR Description Template
-
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Performance improvement
-
-## Testing
-- [ ] All existing tests pass
-- [ ] New tests added
-- [ ] Manual testing performed
-
-## Checklist
-- [ ] Code follows project style
-- [ ] Documentation updated
-- [ ] Tests added/updated
-- [ ] No breaking changes
-```
-
-## Questions or Need Help?
-
-- Open an issue for bugs or feature requests
 - Check existing issues first
-- Provide clear reproduction steps for bugs
-- Explain use case for feature requests
+- Open new issue with clear description
+- Include SQL example and expected output
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
+By contributing, you agree that your contributions will be licensed under Apache 2.0.
