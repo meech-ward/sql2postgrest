@@ -116,6 +116,7 @@ function Supabase() {
   const [baseURL, setBaseURL] = useState('http://localhost:3000');
   const [result, setResult] = useState<PostgRESTRequest | null>(null);
   const [copied, setCopied] = useState(false);
+  const [conversionError, setConversionError] = useState<string | null>(null);
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -130,7 +131,9 @@ function Supabase() {
   const handleConvert = () => {
     if (!sqlQuery.trim()) return;
 
+    setConversionError(null);
     const converted = convert(sqlQuery, baseURL);
+
     if (converted) {
       setResult(converted);
     }
@@ -145,6 +148,7 @@ function Supabase() {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
+      setConversionError(err instanceof Error ? err.message : 'Failed to copy code');
     }
   };
 
@@ -172,397 +176,423 @@ function Supabase() {
   return (
     <PageLayout title="SQL to Supabase">
 
-        <div className="hidden lg:block mb-12">
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="pr-3 space-y-4">
-                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-                  <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                    <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      PostgreSQL Query
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Write your SQL query • Press <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono">⌘ Enter</kbd> to convert
-                    </p>
+      <div className="hidden lg:block mb-12">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="pr-3 space-y-4">
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
+                  <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    PostgreSQL Query
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Write your SQL query • Press <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono">⌘ Enter</kbd> to convert
+                  </p>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
+                          Examples
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                        <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">SQL Examples</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {SQL_EXAMPLES.map((example, i) => (
+                          <DropdownMenuItem
+                            key={i}
+                            onClick={() => setSQLQuery(example.query)}
+                            className="text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer"
+                          >
+                            {example.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
-                  <div className="p-6 space-y-5">
-                    <div className="flex items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
-                            Examples
-                            <ChevronDown className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                          <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">SQL Examples</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {SQL_EXAMPLES.map((example, i) => (
-                            <DropdownMenuItem 
-                              key={i} 
-                              onClick={() => setSQLQuery(example.query)}
-                              className="text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer"
-                            >
-                              {example.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    
-                    <div className="relative">
-                      <Suspense
-                        fallback={
-                          <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                            <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                        }
-                      >
-                        <CodeMirror
-                          autoFocus={true}
-                          value={sqlQuery}
-                          onChange={(value) => setSQLQuery(value)}
-                          theme={isDark ? githubDark : githubLight}
-                          extensions={[sqlLang()]}
-                          placeholder="SELECT * FROM users WHERE age > 18 ORDER BY created_at DESC"
-                          className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700"
-                          editable={isReady}
-                          basicSetup={{
-                            lineNumbers: true,
-                            highlightActiveLineGutter: true,
-                            highlightActiveLine: false,
-                            foldGutter: false,
-                            allowMultipleSelections: true,
-                            autocompletion: true,
-                          }}
-                          minHeight='100px'
-                          style={{
-                            fontSize: '14px',
-                          }}
-                        />
-                      </Suspense>
-                      {!isReady && (
+                  <div className="relative">
+                    <Suspense
+                      fallback={
                         <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
                           <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
                         </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
-                        PostgREST Base URL
-                      </label>
-                      <input
-                        type="text"
-                        value={baseURL}
-                        onChange={(e) => setBaseURL(e.target.value)}
-                        placeholder="http://localhost:3000"
-                        className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                        disabled={!isReady}
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleConvert}
-                      disabled={!isReady || !sqlQuery.trim()}
-                      className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
-                      size="lg"
+                      }
                     >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <Database className="h-4 w-4 mr-2" />
-                          Convert to Supabase
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </ResizablePanel>
-            
-            <ResizableHandle withHandle />
-            
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="pl-3 space-y-4">
-                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-                  <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                          Supabase Output
-                        </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                          Generated Supabase client code
-                        </p>
-                      </div>
-                      {result && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCopy}
-                          className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
-                        >
-                          {copied ? (
-                            <>
-                              <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5 mr-1.5" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    {result ? (
-                      <Suspense
-                        fallback={
-                          <div className="h-24 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-950/80 flex items-center justify-center">
-                            <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                        }
-                      >
-                        <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
-                          <CodeMirror
-                            value={postgrestToSupabase(result).code}
-                            extensions={[javascript({ jsx: false, typescript: true })]}
-                            theme={isDark ? githubDark : githubLight}
-                            editable={false}
-                            basicSetup={{
-                              lineNumbers: false,
-                              foldGutter: false,
-                              highlightActiveLineGutter: false,
-                              highlightActiveLine: false,
-                            }}
-                            className="[&>*:first-child]:p-0"
-                            style={{
-                              fontSize: '14px',
-                            }}
-                          />
-                        </div>
-                      </Suspense>
-                    ) : (
-                      <div className="text-center py-20">
-                        <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                          <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
-                        </div>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">
-                          Your converted request will appear here
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
-        
-        <div className="lg:hidden grid gap-6 mb-12">
-          <div className="space-y-4">
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  PostgreSQL Query
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Write your SQL query • Press <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono">⌘ Enter</kbd> to convert
-                </p>
-              </div>
-
-              <div className="p-6 space-y-5">
-                <div className="flex items-center gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
-                        Examples
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                      <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">SQL Examples</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {SQL_EXAMPLES.map((example, i) => (
-                        <DropdownMenuItem 
-                          key={i} 
-                          onClick={() => setSQLQuery(example.query)}
-                          className="text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer"
-                        >
-                          {example.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                <div className="relative">
-                  <Suspense
-                    fallback={
-                      <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                        <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                    }
-                  >
-                    <CodeMirror
-                      autoFocus={true}
-                      value={sqlQuery}
-                      onChange={(value) => setSQLQuery(value)}
-                      theme={isDark ? githubDark : githubLight}
-                      extensions={[sqlLang()]}
-                      placeholder="SELECT * FROM users WHERE age > 18 ORDER BY created_at DESC"
-                      className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700"
-                      editable={isReady}
-                      basicSetup={{
-                        lineNumbers: true,
-                        highlightActiveLineGutter: true,
-                        highlightActiveLine: false,
-                        foldGutter: false,
-                        allowMultipleSelections: true,
-                        autocompletion: true,
-                      }}
-                      minHeight='100px'
-                      style={{
-                        fontSize: '14px',
-                      }}
-                    />
-                  </Suspense>
-                  {!isReady && (
-                    <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
-                    PostgREST Base URL
-                  </label>
-                  <input
-                    type="text"
-                    value={baseURL}
-                    onChange={(e) => setBaseURL(e.target.value)}
-                    placeholder="http://localhost:3000"
-                    className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                    disabled={!isReady}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleConvert}
-                  disabled={!isReady || !sqlQuery.trim()}
-                  className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
-                  size="lg"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <Database className="h-4 w-4 mr-2" />
-                      Convert to Supabase
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                      Supabase Output
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Generated Supabase client code
-                    </p>
-                  </div>
-                  {result && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopy}
-                      className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
-                    >
-                      {copied ? (
-                        <>
-                          <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3.5 w-3.5 mr-1.5" />
-                          Copy
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-6">
-                {result ? (
-                  <Suspense
-                    fallback={
-                      <div className="h-24 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-950/80 flex items-center justify-center">
-                        <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                    }
-                  >
-                    <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
                       <CodeMirror
-                        value={postgrestToSupabase(result).code}
-                        extensions={[javascript({ jsx: false, typescript: true })]}
+                        autoFocus={true}
+                        value={sqlQuery}
+                        onChange={(value) => setSQLQuery(value)}
                         theme={isDark ? githubDark : githubLight}
-                        editable={false}
+                        extensions={[sqlLang()]}
+                        placeholder="SELECT * FROM users WHERE age > 18 ORDER BY created_at DESC"
+                        className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700"
+                        editable={isReady}
                         basicSetup={{
-                          lineNumbers: false,
-                          foldGutter: false,
-                          highlightActiveLineGutter: false,
+                          lineNumbers: true,
+                          highlightActiveLineGutter: true,
                           highlightActiveLine: false,
+                          foldGutter: false,
+                          allowMultipleSelections: true,
+                          autocompletion: true,
                         }}
-                        className="[&>*:first-child]:p-0"
+                        minHeight='100px'
                         style={{
                           fontSize: '14px',
                         }}
                       />
+                    </Suspense>
+                    {!isReady && (
+                      <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+                      PostgREST Base URL
+                    </label>
+                    <input
+                      type="text"
+                      value={baseURL}
+                      onChange={(e) => setBaseURL(e.target.value)}
+                      placeholder="http://localhost:3000"
+                      className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      disabled={!isReady}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleConvert}
+                    disabled={!isReady || !sqlQuery.trim()}
+                    className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Database className="h-4 w-4 mr-2" />
+                        Convert to Supabase
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="pl-3 space-y-4">
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                        Supabase Output
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Generated Supabase client code
+                      </p>
                     </div>
-                  </Suspense>
-                ) : (
-                  <div className="text-center py-20">
-                    <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                      <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                    {result && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopy}
+                        className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
+                      >
+                        {copied ? (
+                          <>
+                            <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {conversionError && (
+                    <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Conversion Error</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{conversionError}</p>
                     </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">
-                      Your converted request will appear here
-                    </p>
+                  )}
+                  {result ? (
+                    <Suspense
+                      fallback={
+                        <div className="h-24 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-950/80 flex items-center justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                      }
+                    >
+                      <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
+                        <CodeMirror
+                          value={(() => {
+                            try {
+                              return postgrestToSupabase(result).code;
+                            } catch (err) {
+                              setConversionError(err instanceof Error ? err.message : 'Failed to convert to Supabase code');
+                              return JSON.stringify(result, null, 2);
+                            }
+                          })()}
+                          extensions={[javascript({ jsx: false, typescript: true })]}
+                          theme={isDark ? githubDark : githubLight}
+                          editable={false}
+                          basicSetup={{
+                            lineNumbers: false,
+                            foldGutter: false,
+                            highlightActiveLineGutter: false,
+                            highlightActiveLine: false,
+                          }}
+                          className="[&>*:first-child]:p-0"
+                          style={{
+                            fontSize: '14px',
+                          }}
+                        />
+                      </div>
+                    </Suspense>
+                  ) : (
+                    <div className="text-center py-20">
+                      <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
+                        <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm">
+                        Your converted request will appear here
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+
+      <div className="lg:hidden grid gap-6 mb-12">
+        <div className="space-y-4">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
+              <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                PostgreSQL Query
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Write your SQL query • Press <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono">⌘ Enter</kbd> to convert
+              </p>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      Examples
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                    <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">SQL Examples</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {SQL_EXAMPLES.map((example, i) => (
+                      <DropdownMenuItem
+                        key={i}
+                        onClick={() => setSQLQuery(example.query)}
+                        className="text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer"
+                      >
+                        {example.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="relative">
+                <Suspense
+                  fallback={
+                    <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  }
+                >
+                  <CodeMirror
+                    autoFocus={true}
+                    value={sqlQuery}
+                    onChange={(value) => setSQLQuery(value)}
+                    theme={isDark ? githubDark : githubLight}
+                    extensions={[sqlLang()]}
+                    placeholder="SELECT * FROM users WHERE age > 18 ORDER BY created_at DESC"
+                    className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700"
+                    editable={isReady}
+                    basicSetup={{
+                      lineNumbers: true,
+                      highlightActiveLineGutter: true,
+                      highlightActiveLine: false,
+                      foldGutter: false,
+                      allowMultipleSelections: true,
+                      autocompletion: true,
+                    }}
+                    minHeight='100px'
+                    style={{
+                      fontSize: '14px',
+                    }}
+                  />
+                </Suspense>
+                {!isReady && (
+                  <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
                   </div>
                 )}
               </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+                  PostgREST Base URL
+                </label>
+                <input
+                  type="text"
+                  value={baseURL}
+                  onChange={(e) => setBaseURL(e.target.value)}
+                  placeholder="http://localhost:3000"
+                  className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  disabled={!isReady}
+                />
+              </div>
+
+              <Button
+                onClick={handleConvert}
+                disabled={!isReady || !sqlQuery.trim()}
+                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" />
+                    Convert to Supabase
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
+
+        <div className="space-y-4">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                    Supabase Output
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Generated Supabase client code
+                  </p>
+                </div>
+                {result && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopy}
+                    className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 mr-1.5" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6">
+              {conversionError && (
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Conversion Error</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">{conversionError}</p>
+                </div>
+              )}
+              {result ? (
+                <Suspense
+                  fallback={
+                    <div className="h-24 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-950/80 flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  }
+                >
+                  <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800 dark:to-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Supabase JS Client Code</p>
+                    <CodeMirror
+                      value={(() => {
+                        try {
+                          return postgrestToSupabase(result).code;
+                        } catch (err) {
+                          setConversionError(err instanceof Error ? err.message : 'Failed to convert to Supabase code');
+                          return JSON.stringify(result, null, 2);
+                        }
+                      })()}
+                      extensions={[javascript({ jsx: false, typescript: true })]}
+                      theme={isDark ? githubDark : githubLight}
+                      editable={false}
+                      basicSetup={{
+                        lineNumbers: false,
+                        foldGutter: false,
+                        highlightActiveLineGutter: false,
+                        highlightActiveLine: false,
+                      }}
+                      className="[&>*:first-child]:p-0"
+                      style={{
+                        fontSize: '14px',
+                      }}
+                    />
+                  </div>
+                </Suspense>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
+                    <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">
+                    Your converted request will appear here
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </PageLayout>
   );
 }

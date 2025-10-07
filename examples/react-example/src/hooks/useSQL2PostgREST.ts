@@ -2,21 +2,24 @@ import { useState, useCallback, useRef } from 'react';
 
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     SQL2PostgREST: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Go: any;
     __wasmLoaded?: boolean;
   }
   const __WASM_VERSION__: string;
 }
 
-export interface PostgRESTRequest {
+export type PostgRESTRequest = {
   method: string;
   url: string;
   headers?: Record<string, string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body?: any;
 }
 
-export interface UseSQL2PostgRESTResult {
+export type UseSQL2PostgRESTResult = {
   convert: (sql: string, baseURL?: string) => PostgRESTRequest | null;
   isLoading: boolean;
   isReady: boolean;
@@ -47,6 +50,7 @@ export function useSQL2PostgREST(): UseSQL2PostgRESTResult {
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [converter, setConverter] = useState<any>(null);
   const loadingStarted = useRef(false);
 
