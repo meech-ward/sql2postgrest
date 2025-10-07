@@ -94,7 +94,7 @@ describe('postgrestToSupabase', () => {
       }
 
       const result = postgrestToSupabase(request)
-      expect(result.code).toContain(".like('name', 'John*')")
+      expect(result.code).toContain(".like('name', 'John%')")
     })
 
     it('should convert SELECT with ilike filter', () => {
@@ -105,6 +105,26 @@ describe('postgrestToSupabase', () => {
 
       const result = postgrestToSupabase(request)
       expect(result.code).toContain(".ilike('name', '%john%')")
+    })
+
+    it('should convert PostgREST wildcards (*) to SQL wildcards (%) for ILIKE', () => {
+      const request: PostgRESTRequest = {
+        method: 'GET',
+        url: 'http://localhost:3000/products?name=ilike.*phone*'
+      }
+
+      const result = postgrestToSupabase(request)
+      expect(result.code).toContain(".ilike('name', '%phone%')")
+    })
+
+    it('should convert PostgREST wildcards (*) to SQL wildcards (%) for LIKE', () => {
+      const request: PostgRESTRequest = {
+        method: 'GET',
+        url: 'http://localhost:3000/users?name.like=John*'
+      }
+
+      const result = postgrestToSupabase(request)
+      expect(result.code).toContain(".like('name', 'John%')")
     })
 
     it('should convert SELECT with is null filter', () => {
@@ -144,7 +164,7 @@ describe('postgrestToSupabase', () => {
       }
 
       const result = postgrestToSupabase(request)
-      expect(result.code).toContain(".textSearch('content', 'postgres')")
+      expect(result.code).toContain(".textSearch('content', 'postgres', { config: 'english' })")
     })
 
     it('should convert SELECT with order ascending', () => {
@@ -1327,7 +1347,7 @@ describe('postgrestToSupabase', () => {
 
       const result = postgrestToSupabase(request)
       expect(result.code).toContain(".from('products')")
-      expect(result.code).toContain(".ilike('name', '*phone*')")
+      expect(result.code).toContain(".ilike('name', '%phone%')")
       expect(result.code).toContain(".lt('price', 1000)")
       expect(result.code).toContain(".order('price', { ascending: false })")
       expect(result.code).toContain('.limit(20)')
@@ -1341,8 +1361,23 @@ describe('postgrestToSupabase', () => {
 
       const result = postgrestToSupabase(request)
       expect(result.code).toContain(".from('articles')")
-      expect(result.code).toContain(".textSearch('content', 'postgres & (sql | database)')")
+      expect(result.code).toContain(".textSearch('content', 'postgres & (sql | database)', { config: 'english' })")
       expect(result.code).toContain(".order('created_at', { ascending: false })")
+    })
+    
+    it('should handle actual PostgREST FTS URL format', () => {
+      const request: PostgRESTRequest = {
+        method: 'GET',
+        url: 'http://localhost:3000/articles?content=fts.postgres+%26+%28sql+%7C+database%29&order=created_at.desc'
+      }
+
+      const result = postgrestToSupabase(request)
+      
+      expect(result.code).toBe(`supabase
+  .from('articles')
+  .select('*')
+  .textSearch('content', 'postgres & (sql | database)', { config: 'english' })
+  .order('created_at', { ascending: false })`)
     })
 
     it('should convert JSON operators (->>) for metadata queries', () => {

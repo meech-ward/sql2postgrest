@@ -40,8 +40,8 @@ LIMIT 20`
   },
   {
     label: 'Full-text Search',
-    query: `SELECT * FROM articles 
-WHERE content @@ 'postgres & (sql | database)' 
+    query: `SELECT * FROM articles
+WHERE content @@ to_tsquery('postgres & (sql | database)')
 ORDER BY created_at DESC`
   },
   {
@@ -129,11 +129,12 @@ function Supabase() {
   }, [startLoading]);
 
   const handleConvert = () => {
+    console.log('handleConvert', sqlQuery, baseURL);
     if (!sqlQuery.trim()) return;
 
     setConversionError(null);
     const converted = convert(sqlQuery, baseURL);
-
+    console.log('converted', converted);
     if (converted) {
       setResult(converted);
     }
@@ -350,6 +351,7 @@ function Supabase() {
                         <CodeMirror
                           value={(() => {
                             try {
+                              console.log('result', result);
                               return postgrestToSupabase(result).code;
                             } catch (err) {
                               setConversionError(err instanceof Error ? err.message : 'Failed to convert to Supabase code');
@@ -557,6 +559,7 @@ function Supabase() {
                     <CodeMirror
                       value={(() => {
                         try {
+                          console.log('result', result);
                           return postgrestToSupabase(result).code;
                         } catch (err) {
                           setConversionError(err instanceof Error ? err.message : 'Failed to convert to Supabase code');

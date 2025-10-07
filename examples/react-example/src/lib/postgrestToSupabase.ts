@@ -169,9 +169,11 @@ function parseFilter(key: string, value: string): string | null {
     case 'lte':
       return `.lte('${column}', ${formatValue(filterValue)})`
     case 'like':
-      return `.like('${column}', '${safeDecodeURIComponent(filterValue)}')`
+      const likeValue = safeDecodeURIComponent(filterValue).replace(/\*/g, '%');
+      return `.like('${column}', '${likeValue}')`
     case 'ilike':
-      return `.ilike('${column}', '${safeDecodeURIComponent(filterValue)}')`
+      const ilikeValue = safeDecodeURIComponent(filterValue).replace(/\*/g, '%');
+      return `.ilike('${column}', '${ilikeValue}')`
     case 'is':
       return `.is('${column}', ${filterValue === 'null' ? 'null' : formatValue(filterValue)})`
     case 'in':
@@ -194,13 +196,14 @@ function parseFilter(key: string, value: string): string | null {
     case 'adj':
       return `.rangeAdjacent('${column}', '${filterValue}')`
     case 'fts':
-      return `.textSearch('${column}', '${filterValue}')`
+      const ftsValue = safeDecodeURIComponent(filterValue);
+      return `.textSearch('${column}', '${ftsValue.replace(/'/g, "\\'")}', { config: 'english' })`
     case 'plfts':
-      return `.textSearch('${column}', '${filterValue}', { type: 'plain' })`
+      return `.textSearch('${column}', '${safeDecodeURIComponent(filterValue)}', { type: 'plain', config: 'english' })`
     case 'phfts':
-      return `.textSearch('${column}', '${filterValue}', { type: 'phrase' })`
+      return `.textSearch('${column}', '${safeDecodeURIComponent(filterValue)}', { type: 'phrase', config: 'english' })`
     case 'wfts':
-      return `.textSearch('${column}', '${filterValue}', { type: 'websearch' })`
+      return `.textSearch('${column}', '${safeDecodeURIComponent(filterValue)}', { type: 'websearch', config: 'english' })`
     case 'not':
       if (filterValue.includes('.')) {
         const notParts = filterValue.split('.')
