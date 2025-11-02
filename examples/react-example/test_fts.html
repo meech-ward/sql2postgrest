@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>FTS Test</title></head>
+<body>
+<script type="module">
+import init, { convertSQL } from './public/wasm/sql2postgrest.js';
+
+await init('./public/wasm/sql2postgrest.wasm');
+
+const sql = "SELECT * FROM articles WHERE content @@ 'postgres & (sql | database)' ORDER BY created_at DESC";
+const result = convertSQL(sql, 'http://localhost:3000');
+console.log('SQL:', sql);
+console.log('PostgREST URL:', result.url);
+console.log('Full result:', JSON.stringify(result, null, 2));
+</script>
+</body>
+</html>
