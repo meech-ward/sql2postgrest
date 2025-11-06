@@ -43,17 +43,46 @@ class SQL2PostgREST {
         }
 
         const result = sql2postgrest(sql, baseURL);
-        
+
         if (typeof result === 'string') {
             return JSON.parse(result);
         }
-        
+
         return result;
     }
 
     async convertAsync(sql, baseURL = 'http://localhost:3000') {
         await this.load();
         return this.convert(sql, baseURL);
+    }
+
+    // Reverse conversion: PostgREST → SQL
+    convertReverse(request) {
+        if (!this.ready) {
+            throw new Error('WASM not loaded. Call load() first.');
+        }
+
+        // Validate input
+        if (!request || typeof request !== 'object') {
+            throw new Error('Request object required: { method, path, query?, body? }');
+        }
+
+        if (!request.path) {
+            throw new Error('path is required in request object');
+        }
+
+        const result = postgrest2sql(request);
+
+        if (typeof result === 'string') {
+            return JSON.parse(result);
+        }
+
+        return result;
+    }
+
+    async convertReverseAsync(request) {
+        await this.load();
+        return this.convertReverse(request);
     }
 }
 

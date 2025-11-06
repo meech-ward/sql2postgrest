@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SupabaseRouteImport } from './routes/supabase'
+import { Route as PostgrestToSqlRouteImport } from './routes/postgrest-to-sql'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SupabaseRoute = SupabaseRouteImport.update({
   id: '/supabase',
   path: '/supabase',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostgrestToSqlRoute = PostgrestToSqlRouteImport.update({
+  id: '/postgrest-to-sql',
+  path: '/postgrest-to-sql',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/supabase'
+  fullPaths: '/' | '/postgrest-to-sql' | '/supabase'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/supabase'
-  id: '__root__' | '/' | '/supabase'
+  to: '/' | '/postgrest-to-sql' | '/supabase'
+  id: '__root__' | '/' | '/postgrest-to-sql' | '/supabase'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PostgrestToSqlRoute: typeof PostgrestToSqlRoute
   SupabaseRoute: typeof SupabaseRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/supabase'
       fullPath: '/supabase'
       preLoaderRoute: typeof SupabaseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/postgrest-to-sql': {
+      id: '/postgrest-to-sql'
+      path: '/postgrest-to-sql'
+      fullPath: '/postgrest-to-sql'
+      preLoaderRoute: typeof PostgrestToSqlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PostgrestToSqlRoute: PostgrestToSqlRoute,
   SupabaseRoute: SupabaseRoute,
 }
 export const routeTree = rootRouteImport
