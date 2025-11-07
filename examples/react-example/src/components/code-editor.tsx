@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Extension } from '@codemirror/state'
+import { githubLight, githubDark } from '@uiw/codemirror-theme-github'
 
 const CodeMirror = lazy(() => import('@uiw/react-codemirror'))
 
@@ -25,8 +26,6 @@ export function CodeEditor({
   minHeight = '100px',
   autoFocus = false,
 }: CodeEditorProps) {
-  // Lazy load themes
-  const { githubLight, githubDark } = require('@uiw/codemirror-theme-github')
   const codemirrorTheme = theme === 'dark' ? githubDark : githubLight
 
   return (
