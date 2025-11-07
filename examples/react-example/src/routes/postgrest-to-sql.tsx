@@ -153,6 +153,13 @@ function PostgRESTToSQL() {
     return () => clearTimeout(timer)
   }, [startLoading])
 
+  // Auto-convert when ready or inputs change
+  useEffect(() => {
+    if (isReady && url) {
+      handleConvert()
+    }
+  }, [isReady, method, url, body])
+
   const handleConvert = () => {
     if (!isReady) {
       setConversionError('WASM module not loaded yet')
@@ -239,7 +246,7 @@ function PostgRESTToSQL() {
   }
 
   return (
-    <PageLayout title="PostgREST to SQL">
+    <PageLayout title="PostgREST → SQL">
       <div className="hidden lg:block mb-12">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={50} minSize={30}>

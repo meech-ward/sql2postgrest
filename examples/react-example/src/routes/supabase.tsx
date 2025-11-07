@@ -133,6 +133,13 @@ function Supabase() {
     return () => clearTimeout(timer);
   }, [startLoading, startSQLLoading]);
 
+  // Auto-convert when ready or inputs change
+  useEffect(() => {
+    if (isReady && sqlQuery) {
+      handleConvert();
+    }
+  }, [isReady, sqlQuery, baseURL]);
+
   const handleConvert = () => {
     console.log('handleConvert', sqlQuery, baseURL);
     if (!sqlQuery.trim()) return;
@@ -207,7 +214,7 @@ function Supabase() {
   }
 
   return (
-    <PageLayout title="SQL to Supabase">
+    <PageLayout title="SQL → Supabase">
 
       <div className="hidden lg:block mb-12">
         <ResizablePanelGroup direction="horizontal">

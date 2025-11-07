@@ -127,8 +127,15 @@ function Index() {
     return () => clearTimeout(timer);
   }, [startLoading]);
 
+  // Auto-convert when ready or inputs change
+  useEffect(() => {
+    if (isReady && sqlQuery) {
+      handleConvert();
+    }
+  }, [isReady, sqlQuery, baseURL]);
+
   const handleConvert = () => {
-    if (!sqlQuery.trim()) return;
+    if (!sqlQuery.trim() || !isReady) return;
 
     const converted = convert(sqlQuery, baseURL);
     if (converted) {
@@ -169,7 +176,7 @@ function Index() {
   }
 
   return (
-    <PageLayout title="SQL to PostgREST Converter">
+    <PageLayout title="SQL → PostgREST">
 
         <div className="hidden lg:block mb-12">
           <ResizablePanelGroup direction="horizontal">
