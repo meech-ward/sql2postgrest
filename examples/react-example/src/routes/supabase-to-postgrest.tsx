@@ -203,7 +203,7 @@ function SupabaseToPostgREST() {
 
   return (
     <PageLayout title="Supabase JS → PostgREST">
-      <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl">
+      <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
         <ResizablePanel defaultSize={50} minSize={30}>
           <div className="flex h-full flex-col p-6">
             <div className="mb-4 flex items-center justify-between">
@@ -294,7 +294,7 @@ function SupabaseToPostgREST() {
 
             <div className="flex-1 flex flex-col gap-4 overflow-auto">
               {result?.error ? (
-                <Card className="bg-red-50/80 dark:bg-red-900/20 border-red-200 dark:border-red-800 backdrop-blur-xl">
+                <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
                       <AlertCircle className="h-5 w-5" />
@@ -308,7 +308,7 @@ function SupabaseToPostgREST() {
               ) : result ? (
                 <>
                   {/* Method and URL Card */}
-                  <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                  <Card className="bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                     <CardHeader>
                       <CardTitle className="text-sm font-medium">HTTP Request</CardTitle>
                     </CardHeader>
@@ -337,7 +337,7 @@ function SupabaseToPostgREST() {
 
                   {/* Headers Card */}
                   {result.headers && Object.keys(result.headers).length > 0 && (
-                    <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                    <Card className="bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                       <CardHeader>
                         <CardTitle className="text-sm font-medium">Headers</CardTitle>
                       </CardHeader>
@@ -356,7 +356,7 @@ function SupabaseToPostgREST() {
 
                   {/* Body Card */}
                   {result.body && (
-                    <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                    <Card className="bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                       <CardHeader>
                         <CardTitle className="text-sm font-medium">Request Body</CardTitle>
                       </CardHeader>
@@ -370,7 +370,7 @@ function SupabaseToPostgREST() {
 
                   {/* Warnings Card */}
                   {result.warnings && result.warnings.length > 0 && (
-                    <Card className="bg-yellow-50/80 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 backdrop-blur-xl">
+                    <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400 text-sm">
                           <AlertCircle className="h-4 w-4" />
@@ -391,7 +391,7 @@ function SupabaseToPostgREST() {
                   )}
 
                   {/* JSON Output Card */}
-                  <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                  <Card className="bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                     <CardHeader className="flex flex-row items-center justify-between">
                       <CardTitle className="text-sm font-medium">JSON Output</CardTitle>
                       <Button
@@ -422,7 +422,7 @@ function SupabaseToPostgREST() {
 
                   {/* cURL Command Card */}
                   {!result.http_only && (
-                    <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                    <Card className="bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
                       <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-sm font-medium">cURL Command</CardTitle>
                         <Button
