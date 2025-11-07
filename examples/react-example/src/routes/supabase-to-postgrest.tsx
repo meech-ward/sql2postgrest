@@ -1,16 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { useSupabase2PostgREST, type SupabaseConversionResult } from '../hooks/useSupabase2PostgREST'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Loader2, Copy, CheckCheck, ChevronDown, AlertCircle } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
+import { Loader2, Copy, CheckCheck } from 'lucide-react'
 import { useTheme } from '../components/theme-provider'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable'
 import { PageLayout } from '../components/page-layout'
-const CodeMirror = lazy(() => import('@uiw/react-codemirror'))
+import { ConversionCard } from '../components/conversion-card'
+import { CodeEditor } from '../components/code-editor'
+import { ExampleDropdown } from '../components/example-dropdown'
+import { useClipboard } from '../hooks/useClipboard'
 import { javascript } from '@codemirror/lang-javascript'
-import { githubLight, githubDark } from '@uiw/codemirror-theme-github'
 
 export const Route = createFileRoute('/supabase-to-postgrest')({
   component: SupabaseToPostgREST,
@@ -113,8 +113,8 @@ function SupabaseToPostgREST() {
   const [query, setQuery] = useState(EXAMPLE_QUERIES[0].query)
   const [baseURL, setBaseURL] = useState('http://localhost:3000')
   const [result, setResult] = useState<SupabaseConversionResult | null>(null)
-  const [copiedOutput, setCopiedOutput] = useState(false)
-  const [copiedCurl, setCopiedCurl] = useState(false)
+  const { copied: copiedOutput, copy: copyOutput } = useClipboard()
+  const { copied: copiedCurl, copy: copyCurl } = useClipboard()
   const { convert, isLoading: wasmLoading, isReady, error: wasmError, startLoading } = useSupabase2PostgREST()
 
   // Start loading WASM on mount
@@ -135,11 +135,6 @@ function SupabaseToPostgREST() {
     setResult(conversionResult)
   }
 
-  const copyToClipboard = async (text: string, setCopied: (val: boolean) => void) => {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const buildCurlCommand = (): string => {
     if (!result || result.error) return ''
@@ -207,101 +202,50 @@ function SupabaseToPostgREST() {
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={50} minSize={30}>
             <div className="pr-3 space-y-4">
-              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                  <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                    Supabase Query
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    Write your Supabase JS query
-                  </p>
+              <ConversionCard
+                title="Supabase Query"
+                description="Write your Supabase JS query"
+                dotColor="blue"
+              >
+                <div className="flex items-center gap-2">
+                  <ExampleDropdown
+                    examples={EXAMPLE_QUERIES}
+                    onSelect={(example) => setQuery(example.query)}
+                    label="Examples"
+                  />
                 </div>
 
-                <div className="p-6 space-y-5">
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
-                          Examples
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-80 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                        <DropdownMenuLabel className="text-slate-900 dark:text-slate-100">Query Examples</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {EXAMPLE_QUERIES.map((example, index) => (
-                          <DropdownMenuItem
-                            key={index}
-                            onClick={() => setQuery(example.query)}
-                            className="text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-400 cursor-pointer"
-                          >
-                            {example.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
-                      PostgREST Base URL
-                    </label>
-                    <input
-                      type="text"
-                      value={baseURL}
-                      onChange={(e) => setBaseURL(e.target.value)}
-                      placeholder="http://localhost:3000"
-                      className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                      disabled={!isReady}
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <Suspense
-                      fallback={
-                        <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                          <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
-                        </div>
-                      }
-                    >
-                      <CodeMirror
-                        value={query}
-                        onChange={(value) => setQuery(value)}
-                        theme={theme === 'dark' ? githubDark : githubLight}
-                        extensions={[javascript()]}
-                        placeholder="supabase.from('users').select('*')"
-                        className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700"
-                        editable={isReady}
-                        basicSetup={{
-                          lineNumbers: true,
-                          highlightActiveLineGutter: true,
-                          highlightActiveLine: false,
-                          foldGutter: false,
-                          allowMultipleSelections: true,
-                          autocompletion: true,
-                        }}
-                        minHeight='200px'
-                        style={{
-                          fontSize: '14px',
-                        }}
-                      />
-                    </Suspense>
-                    {!isReady && (
-                      <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                        <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
-                      </div>
-                    )}
-                  </div>
-
-                  {wasmError && (
-                    <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
-                      <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Failed to load converter</p>
-                      <p className="text-sm text-red-700 dark:text-red-300">{wasmError}</p>
-                    </div>
-                  )}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+                    PostgREST Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={baseURL}
+                    onChange={(e) => setBaseURL(e.target.value)}
+                    placeholder="http://localhost:3000"
+                    className="w-full px-4 py-2.5 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/20 transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                    disabled={!isReady}
+                  />
                 </div>
-              </div>
+
+                <CodeEditor
+                  value={query}
+                  onChange={(value) => setQuery(value)}
+                  extensions={[javascript()]}
+                  theme={theme}
+                  placeholder="supabase.from('users').select('*')"
+                  editable={isReady}
+                  minHeight="200px"
+                />
+
+                {wasmError && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
+                    <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Failed to load converter</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">{wasmError}</p>
+                  </div>
+                )}
+              </ConversionCard>
             </div>
           </ResizablePanel>
 
@@ -309,18 +253,12 @@ function SupabaseToPostgREST() {
 
           <ResizablePanel defaultSize={50} minSize={30}>
             <div className="pl-3 space-y-4">
-              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
-                  <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                    PostgREST Request
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    Generated PostgREST HTTP request
-                  </p>
-                </div>
-
-                  {result?.error ? (
+              <ConversionCard
+                title="PostgREST Request"
+                description="Generated PostgREST HTTP request"
+                dotColor="purple"
+              >
+                {result?.error ? (
                     <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
                       <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Conversion Error</p>
                       <p className="text-sm text-red-700 dark:text-red-300">{result.error}</p>
@@ -398,7 +336,7 @@ function SupabaseToPostgREST() {
                             size="sm"
                             onClick={(e) => {
                               e.preventDefault()
-                              copyToClipboard(buildPostgRESTOutput(), setCopiedOutput)
+                              copyOutput(buildPostgRESTOutput())
                             }}
                             className="h-7"
                           >
@@ -431,7 +369,7 @@ function SupabaseToPostgREST() {
                               size="sm"
                               onClick={(e) => {
                                 e.preventDefault()
-                                copyToClipboard(buildCurlCommand(), setCopiedCurl)
+                                copyCurl(buildCurlCommand())
                               }}
                               className="h-7"
                             >
@@ -466,8 +404,7 @@ function SupabaseToPostgREST() {
                       </p>
                     </div>
                   )}
-                </div>
-              </div>
+              </ConversionCard>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
