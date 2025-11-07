@@ -115,7 +115,7 @@ func (c *Converter) toPostgREST(query *SupabaseQuery) (*PostgRESTOutput, error) 
 
 	// Upsert handling
 	if query.Upsert {
-		resolution := "merge-duplicates"
+		resolution := "resolution=merge-duplicates"
 		if query.OnConflict != "" {
 			resolution = fmt.Sprintf("resolution=%s", query.OnConflict)
 		}

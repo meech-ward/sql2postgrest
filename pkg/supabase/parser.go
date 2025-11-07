@@ -198,6 +198,16 @@ func parseMethod(query *SupabaseQuery, method MethodCall) error {
 		}
 		query.Operation = "select"
 
+		// Check for options in second argument (e.g., {count: 'exact'})
+		if len(method.Args) >= 2 {
+			opts := parseJSON(method.Args[1])
+			if optsMap, ok := opts.(map[string]interface{}); ok {
+				if count, ok := optsMap["count"].(string); ok {
+					query.Count = count
+				}
+			}
+		}
+
 	case "insert":
 		query.Operation = "insert"
 		if len(method.Args) > 0 {
@@ -385,6 +395,37 @@ func parseMethod(query *SupabaseQuery, method MethodCall) error {
 
 	case "maybeSingle":
 		query.MaybeSingle = true
+
+	// Special operations
+	case "rpc":
+		query.IsSpecialOp = true
+		query.SpecialType = "rpc"
+		if len(method.Args) >= 1 {
+			query.RPCFunction = method.Args[0]
+		}
+		if len(method.Args) >= 2 {
+			query.RPCParams = parseJSON(method.Args[1])
+		}
+
+	case "auth":
+		query.IsSpecialOp = true
+		query.SpecialType = "auth"
+
+	case "storage":
+		query.IsSpecialOp = true
+		query.SpecialType = "storage"
+
+	// Negation filter
+	case "not":
+		if len(method.Args) >= 3 {
+			// .not('column', 'operator', 'value')
+			query.Filters = append(query.Filters, Filter{
+				Column:   method.Args[0],
+				Operator: method.Args[1],
+				Value:    parseValue(method.Args[2]),
+				Negate:   true,
+			})
+		}
 	}
 
 	return nil
@@ -471,9 +512,20 @@ func parseArrayArg(arg string) []interface{} {
 
 // parseRPC handles RPC method calls
 func parseRPC(input string, functionName string) ([]MethodCall, error) {
-	// For now, just mark it as an RPC call
-	// We'll handle the full implementation later
-	return []MethodCall{{Name: "rpc", Args: []string{functionName}}}, nil
+	// Extract parameters if present
+	// Pattern: .rpc('function_name', {params})
+	rpcPattern := regexp.MustCompile(`\.rpc\s*\(\s*['"]` + regexp.QuoteMeta(functionName) + `['"]\s*(?:,\s*(.+))?\)`)
+	matches := rpcPattern.FindStringSubmatch(input)
+
+	result := MethodCall{Name: "rpc", Args: []string{functionName}}
+
+	// If there are parameters (second argument)
+	if len(matches) > 1 && matches[1] != "" {
+		paramsStr := strings.TrimSpace(matches[1])
+		result.Args = append(result.Args, paramsStr)
+	}
+
+	return []MethodCall{result}, nil
 }
 
 // parseSpecialOp handles special operations like auth and storage
