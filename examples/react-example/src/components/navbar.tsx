@@ -30,6 +30,16 @@ export function Navbar() {
             Supabase
           </Link>
           <Link
+            to="/supabase-to-postgrest"
+            className={`text-sm font-medium transition-colors ${
+              currentPath === '/supabase-to-postgrest'
+                ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'
+            }`}
+          >
+            Supabase → PostgREST
+          </Link>
+          <Link
             to="/postgrest-to-sql"
             className={`text-sm font-medium transition-colors ${
               currentPath === '/postgrest-to-sql'

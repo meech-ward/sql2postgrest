@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupabaseToPostgrestRouteImport } from './routes/supabase-to-postgrest'
 import { Route as SupabaseRouteImport } from './routes/supabase'
 import { Route as PostgrestToSqlRouteImport } from './routes/postgrest-to-sql'
 import { Route as IndexRouteImport } from './routes/index'
 
+const SupabaseToPostgrestRoute = SupabaseToPostgrestRouteImport.update({
+  id: '/supabase-to-postgrest',
+  path: '/supabase-to-postgrest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SupabaseRoute = SupabaseRouteImport.update({
   id: '/supabase',
   path: '/supabase',
@@ -33,34 +39,50 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
+  '/supabase-to-postgrest': typeof SupabaseToPostgrestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
+  '/supabase-to-postgrest': typeof SupabaseToPostgrestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/postgrest-to-sql': typeof PostgrestToSqlRoute
   '/supabase': typeof SupabaseRoute
+  '/supabase-to-postgrest': typeof SupabaseToPostgrestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/postgrest-to-sql' | '/supabase'
+  fullPaths: '/' | '/postgrest-to-sql' | '/supabase' | '/supabase-to-postgrest'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/postgrest-to-sql' | '/supabase'
-  id: '__root__' | '/' | '/postgrest-to-sql' | '/supabase'
+  to: '/' | '/postgrest-to-sql' | '/supabase' | '/supabase-to-postgrest'
+  id:
+    | '__root__'
+    | '/'
+    | '/postgrest-to-sql'
+    | '/supabase'
+    | '/supabase-to-postgrest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PostgrestToSqlRoute: typeof PostgrestToSqlRoute
   SupabaseRoute: typeof SupabaseRoute
+  SupabaseToPostgrestRoute: typeof SupabaseToPostgrestRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/supabase-to-postgrest': {
+      id: '/supabase-to-postgrest'
+      path: '/supabase-to-postgrest'
+      fullPath: '/supabase-to-postgrest'
+      preLoaderRoute: typeof SupabaseToPostgrestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/supabase': {
       id: '/supabase'
       path: '/supabase'
@@ -89,6 +111,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PostgrestToSqlRoute: PostgrestToSqlRoute,
   SupabaseRoute: SupabaseRoute,
+  SupabaseToPostgrestRoute: SupabaseToPostgrestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
