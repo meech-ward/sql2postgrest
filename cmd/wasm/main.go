@@ -22,7 +22,10 @@ func main() {
 	// Supabase converter: Supabase JS → PostgREST
 	js.Global().Set("supabase2postgrest", js.FuncOf(convertSupabase))
 
-	println("sql2postgrest WASM loaded (with reverse and Supabase converters)")
+	// Chained converter: Supabase JS → PostgREST → SQL
+	js.Global().Set("supabase2sql", js.FuncOf(convertSupabaseToSQL))
+
+	println("sql2postgrest WASM loaded (with reverse, Supabase, and chained converters)")
 	<-c
 }
 
@@ -193,6 +196,116 @@ func convertSupabase(this js.Value, args []js.Value) interface{} {
 		fullURL += "?" + result.Query
 	}
 	response["url"] = fullURL
+
+	return response
+}
+
+func convertSupabaseToSQL(this js.Value, args []js.Value) interface{} {
+	// Expected input: Supabase JS query string
+	if len(args) < 1 {
+		return map[string]interface{}{
+			"error": "Supabase query required as first argument",
+		}
+	}
+
+	query := args[0].String()
+
+	baseURL := "http://localhost:3000"
+	if len(args) >= 2 && !args[1].IsNull() && !args[1].IsUndefined() {
+		baseURL = args[1].String()
+	}
+
+	// Step 1: Convert Supabase → PostgREST
+	supabaseConv := supabase.NewConverter(baseURL)
+	postgrestResult, err := supabaseConv.Convert(query)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}
+	}
+
+	// Check if it's an HTTP-only operation (can't convert to SQL)
+	if postgrestResult.IsHTTPOnly {
+		return map[string]interface{}{
+			"error":       "Cannot convert to SQL",
+			"description": postgrestResult.Description,
+			"warnings":    postgrestResult.Warnings,
+		}
+	}
+
+	// Step 2: Convert PostgREST → SQL
+	reverseConv := reverse.NewConverter()
+	sqlResult, err := reverseConv.Convert(
+		postgrestResult.Method,
+		postgrestResult.Path,
+		postgrestResult.Query,
+		postgrestResult.Body,
+	)
+	if err != nil {
+		return map[string]interface{}{
+			"error": err.Error(),
+		}
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"sql": sqlResult.SQL,
+	}
+
+	// Add intermediate PostgREST representation
+	intermediate := map[string]interface{}{
+		"method": postgrestResult.Method,
+		"path":   postgrestResult.Path,
+	}
+	if postgrestResult.Query != "" {
+		intermediate["query"] = postgrestResult.Query
+	}
+	if postgrestResult.Body != "" {
+		intermediate["body"] = postgrestResult.Body
+	}
+	if len(postgrestResult.Headers) > 0 {
+		headersObj := make(map[string]interface{})
+		for k, v := range postgrestResult.Headers {
+			headersObj[k] = v
+		}
+		intermediate["headers"] = headersObj
+	}
+	response["intermediate_postgrest"] = intermediate
+
+	// Add warnings from both conversions
+	allWarnings := []interface{}{}
+	if len(postgrestResult.Warnings) > 0 {
+		for _, w := range postgrestResult.Warnings {
+			allWarnings = append(allWarnings, w)
+		}
+	}
+	if len(sqlResult.Warnings) > 0 {
+		for _, w := range sqlResult.Warnings {
+			allWarnings = append(allWarnings, w)
+		}
+	}
+	if len(allWarnings) > 0 {
+		response["warnings"] = allWarnings
+	}
+
+	// Add metadata if present
+	if len(sqlResult.Metadata) > 0 {
+		metadataObj := make(map[string]interface{})
+		for k, v := range sqlResult.Metadata {
+			metadataObj[k] = v
+		}
+		response["metadata"] = metadataObj
+	}
+
+	// Add HTTP request info if present
+	if sqlResult.HTTPRequest != nil {
+		response["http"] = map[string]interface{}{
+			"method":  sqlResult.HTTPRequest.Method,
+			"url":     sqlResult.HTTPRequest.URL,
+			"headers": sqlResult.HTTPRequest.Headers,
+			"body":    sqlResult.HTTPRequest.Body,
+		}
+	}
 
 	return response
 }
