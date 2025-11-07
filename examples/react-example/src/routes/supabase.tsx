@@ -1,9 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSQL2PostgREST, type PostgRESTRequest } from '../hooks/useSQL2PostgREST';
+import { useSupabase2SQL, type Supabase2SQLResult } from '../hooks/useSupabase2SQL';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, Copy, CheckCheck, Database, ChevronDown } from 'lucide-react';
+import { Loader2, Copy, CheckCheck, Database, ChevronDown, AlertCircle, ArrowRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { useTheme } from '../components/theme-provider';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable';
@@ -111,11 +112,14 @@ WHERE deleted_at IS NULL
 
 function Supabase() {
   const { convert, isLoading, isReady, error: wasmError, startLoading } = useSQL2PostgREST();
+  const { convert: convertToSQL, isLoading: isSQLLoading, isReady: isSQLReady, error: sqlWasmError, startLoading: startSQLLoading } = useSupabase2SQL();
   const { theme } = useTheme();
   const [sqlQuery, setSQLQuery] = useState('SELECT * FROM users WHERE age > 18');
   const [baseURL, setBaseURL] = useState('http://localhost:3000');
   const [result, setResult] = useState<PostgRESTRequest | null>(null);
+  const [sqlResult, setSQLResult] = useState<Supabase2SQLResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedSQL, setCopiedSQL] = useState(false);
   const [conversionError, setConversionError] = useState<string | null>(null);
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -123,20 +127,37 @@ function Supabase() {
   useEffect(() => {
     const timer = setTimeout(() => {
       startLoading();
+      startSQLLoading();
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [startLoading]);
+  }, [startLoading, startSQLLoading]);
 
   const handleConvert = () => {
     console.log('handleConvert', sqlQuery, baseURL);
     if (!sqlQuery.trim()) return;
 
     setConversionError(null);
+    setSQLResult(null);
     const converted = convert(sqlQuery, baseURL);
     console.log('converted', converted);
     if (converted) {
       setResult(converted);
+
+      // Now convert the generated Supabase code back to SQL
+      try {
+        const supabaseCode = postgrestToSupabase(converted).code;
+        console.log('supabaseCode', supabaseCode);
+
+        if (isSQLReady && convertToSQL) {
+          const sqlConverted = convertToSQL(supabaseCode, baseURL);
+          console.log('sqlConverted', sqlConverted);
+          setSQLResult(sqlConverted);
+        }
+      } catch (err) {
+        console.error('Error in round-trip conversion:', err);
+        setConversionError(err instanceof Error ? err.message : 'Failed to convert back to SQL');
+      }
     }
   };
 
@@ -150,6 +171,17 @@ function Supabase() {
     } catch (err) {
       console.error('Failed to copy:', err);
       setConversionError(err instanceof Error ? err.message : 'Failed to copy code');
+    }
+  };
+
+  const handleCopySQL = async () => {
+    if (!sqlResult?.sql) return;
+    try {
+      await navigator.clipboard.writeText(sqlResult.sql);
+      setCopiedSQL(true);
+      setTimeout(() => setCopiedSQL(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy SQL:', err);
     }
   };
 
@@ -390,6 +422,152 @@ function Supabase() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+
+      {/* Round-trip conversion: Supabase → SQL */}
+      {sqlResult && (
+        <div className="mb-12">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                    Round-trip Conversion
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                    <span>SQL</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span>PostgREST</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span>Supabase</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span className="font-medium text-purple-600 dark:text-purple-400">SQL</span>
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopySQL}
+                  className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50 dark:hover:bg-purple-950/50 hover:border-purple-300 dark:hover:border-purple-700 hover:text-purple-700 dark:hover:text-purple-400 transition-colors"
+                >
+                  {copiedSQL ? (
+                    <>
+                      <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy SQL
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {sqlResult.error ? (
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">
+                        {sqlResult.description || 'Conversion Error'}
+                      </p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{sqlResult.error}</p>
+                      {sqlResult.warnings && sqlResult.warnings.length > 0 && (
+                        <ul className="mt-2 text-sm text-red-600 dark:text-red-400 list-disc list-inside">
+                          {sqlResult.warnings.map((warning, i) => (
+                            <li key={i}>{warning}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/10 rounded-xl border border-purple-200 dark:border-purple-700">
+                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-2 uppercase tracking-wide">
+                      Converted SQL
+                    </p>
+                    <Suspense
+                      fallback={
+                        <div className="h-12 rounded-lg overflow-hidden border border-purple-200 dark:border-purple-700 bg-purple-100/80 dark:bg-purple-950/80 flex items-center justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-purple-600 dark:text-purple-400" />
+                        </div>
+                      }
+                    >
+                      <CodeMirror
+                        value={sqlResult.sql}
+                        extensions={[sqlLang()]}
+                        theme={isDark ? githubDark : githubLight}
+                        editable={false}
+                        basicSetup={{
+                          lineNumbers: false,
+                          foldGutter: false,
+                          highlightActiveLineGutter: false,
+                          highlightActiveLine: false,
+                        }}
+                        className="[&>*:first-child]:p-0"
+                        style={{
+                          fontSize: '14px',
+                        }}
+                      />
+                    </Suspense>
+                  </div>
+
+                  {sqlResult.intermediate_postgrest && (
+                    <details className="group">
+                      <summary className="cursor-pointer p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          View Intermediate PostgREST Request
+                        </span>
+                      </summary>
+                      <div className="mt-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto">
+                          {JSON.stringify(sqlResult.intermediate_postgrest, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  )}
+
+                  {sqlResult.warnings && sqlResult.warnings.length > 0 && (
+                    <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+                      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200 mb-2">
+                        Warnings
+                      </p>
+                      <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                        {sqlResult.warnings.map((warning, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-yellow-500 dark:text-yellow-400">•</span>
+                            <span>{warning}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {sqlResult.metadata && Object.keys(sqlResult.metadata).length > 0 && (
+                    <details className="group">
+                      <summary className="cursor-pointer p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Metadata
+                        </span>
+                      </summary>
+                      <div className="mt-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto">
+                          {JSON.stringify(sqlResult.metadata, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="lg:hidden grid gap-6 mb-12">
         <div className="space-y-4">
