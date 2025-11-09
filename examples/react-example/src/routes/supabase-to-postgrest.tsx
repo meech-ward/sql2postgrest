@@ -122,10 +122,15 @@ function SupabaseToPostgREST() {
     startLoading()
   }, [startLoading])
 
+  // Auto-convert when ready or inputs change (with debounce)
   useEffect(() => {
-    if (isReady && query) {
+    if (!isReady || !query) return
+
+    const timer = setTimeout(() => {
       handleConvert()
-    }
+    }, 500) // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer)
   }, [isReady, query, baseURL])
 
   const handleConvert = () => {

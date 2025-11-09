@@ -153,11 +153,15 @@ function PostgRESTToSQL() {
     return () => clearTimeout(timer)
   }, [startLoading])
 
-  // Auto-convert when ready or inputs change
+  // Auto-convert when ready or inputs change (with debounce)
   useEffect(() => {
-    if (isReady && url) {
+    if (!isReady || !url) return
+
+    const timer = setTimeout(() => {
       handleConvert()
-    }
+    }, 500) // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer)
   }, [isReady, method, url, body])
 
   const handleConvert = () => {

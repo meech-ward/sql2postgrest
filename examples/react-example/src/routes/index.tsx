@@ -3,7 +3,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSQL2PostgREST, type PostgRESTRequest } from '../hooks/useSQL2PostgREST';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, Copy, CheckCheck, ChevronDown } from 'lucide-react';
+import { Loader2, Copy, CheckCheck, ChevronDown, Code } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { useTheme } from '../components/theme-provider';
 import { formatPostgRESTUrl } from '../lib/formatPostgRESTUrl';
@@ -127,11 +127,15 @@ function Index() {
     return () => clearTimeout(timer);
   }, [startLoading]);
 
-  // Auto-convert when ready or inputs change
+  // Auto-convert when ready or inputs change (with debounce)
   useEffect(() => {
-    if (isReady && sqlQuery) {
+    if (!isReady || !sqlQuery) return;
+
+    const timer = setTimeout(() => {
       handleConvert();
-    }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer);
   }, [isReady, sqlQuery, baseURL]);
 
   const handleConvert = () => {
@@ -382,7 +386,7 @@ function Index() {
                     ) : (
                       <div className="text-center py-20">
                         <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                          <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                          <Code className="h-12 w-12 text-slate-400 dark:text-slate-600" />
                         </div>
                         <p className="text-slate-500 dark:text-slate-400 text-sm">
                           Your converted request will appear here
@@ -594,7 +598,7 @@ function Index() {
                 ) : (
                   <div className="text-center py-20">
                     <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                      <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                      <Code className="h-12 w-12 text-slate-400 dark:text-slate-600" />
                     </div>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
                       Your converted request will appear here

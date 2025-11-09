@@ -133,11 +133,15 @@ function Supabase() {
     return () => clearTimeout(timer);
   }, [startLoading, startSQLLoading]);
 
-  // Auto-convert when ready or inputs change
+  // Auto-convert when ready or inputs change (with debounce)
   useEffect(() => {
-    if (isReady && sqlQuery) {
+    if (!isReady || !sqlQuery) return;
+
+    const timer = setTimeout(() => {
       handleConvert();
-    }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer);
   }, [isReady, sqlQuery, baseURL]);
 
   const handleConvert = () => {
