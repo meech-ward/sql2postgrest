@@ -341,22 +341,6 @@ function PostgRESTToSQL() {
                       </p>
                     </div>
                   )}
-
-                  {/* Convert Button */}
-                  <Button
-                    onClick={handleConvert}
-                    disabled={!isReady || isLoading}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      'Convert to SQL'
-                    )}
-                  </Button>
                 </div>
               </div>
             </div>

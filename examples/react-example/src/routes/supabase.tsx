@@ -4,7 +4,7 @@ import { useSQL2PostgREST, type PostgRESTRequest } from '../hooks/useSQL2PostgRE
 import { useSupabase2SQL, type Supabase2SQLResult } from '../hooks/useSupabase2SQL';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, Copy, CheckCheck, Database, ChevronDown, AlertCircle, ArrowRight } from 'lucide-react';
+import { Loader2, Copy, CheckCheck, ChevronDown, AlertCircle, ArrowRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { useTheme } from '../components/theme-provider';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable';
@@ -307,25 +307,6 @@ function Supabase() {
                       disabled={!isReady}
                     />
                   </div>
-
-                  <Button
-                    onClick={handleConvert}
-                    disabled={!isReady || !sqlQuery.trim()}
-                    className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
-                    size="lg"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Database className="h-4 w-4 mr-2" />
-                        Convert to Supabase
-                      </>
-                    )}
-                  </Button>
                 </div>
               </div>
             </div>
@@ -665,25 +646,6 @@ function Supabase() {
                   disabled={!isReady}
                 />
               </div>
-
-              <Button
-                onClick={handleConvert}
-                disabled={!isReady || !sqlQuery.trim()}
-                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all duration-200 font-medium"
-                size="lg"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Database className="h-4 w-4 mr-2" />
-                    Convert to Supabase
-                  </>
-                )}
-              </Button>
             </div>
           </div>
         </div>
