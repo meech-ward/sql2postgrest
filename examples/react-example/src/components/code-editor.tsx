@@ -5,11 +5,13 @@ import { githubLight, githubDark } from '@uiw/codemirror-theme-github'
 
 const CodeMirror = lazy(() => import('@uiw/react-codemirror'))
 
+type Theme = 'dark' | 'light' | 'system'
+
 interface CodeEditorProps {
   value: string
   onChange?: (value: string) => void
   extensions: Extension[]
-  theme: 'light' | 'dark'
+  theme: Theme
   placeholder?: string
   editable?: boolean
   minHeight?: string
@@ -26,7 +28,9 @@ export function CodeEditor({
   minHeight = '100px',
   autoFocus = false,
 }: CodeEditorProps) {
-  const codemirrorTheme = theme === 'dark' ? githubDark : githubLight
+  // Handle 'system' theme by defaulting to 'light'
+  const resolvedTheme = theme === 'system' ? 'light' : theme
+  const codemirrorTheme = resolvedTheme === 'dark' ? githubDark : githubLight
 
   return (
     <div className="relative">

@@ -4,7 +4,7 @@ import { useSQL2PostgREST, type PostgRESTRequest } from '../hooks/useSQL2PostgRE
 import { useSupabase2SQL, type Supabase2SQLResult } from '../hooks/useSupabase2SQL';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, Copy, CheckCheck, ChevronDown, AlertCircle, ArrowRight } from 'lucide-react';
+import { Loader2, Copy, CheckCheck, ChevronDown, AlertCircle, ArrowRight, Code } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { useTheme } from '../components/theme-provider';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable';
@@ -111,8 +111,8 @@ WHERE deleted_at IS NULL
 ];
 
 function Supabase() {
-  const { convert, isLoading, isReady, error: wasmError, startLoading } = useSQL2PostgREST();
-  const { convert: convertToSQL, isLoading: isSQLLoading, isReady: isSQLReady, error: sqlWasmError, startLoading: startSQLLoading } = useSupabase2SQL();
+  const { convert, isReady, error: wasmError, startLoading } = useSQL2PostgREST();
+  const { convert: convertToSQL, isReady: isSQLReady, startLoading: startSQLLoading } = useSupabase2SQL();
   const { theme } = useTheme();
   const [sqlQuery, setSQLQuery] = useState('SELECT * FROM users WHERE age > 18');
   const [baseURL, setBaseURL] = useState('http://localhost:3000');
@@ -401,7 +401,7 @@ function Supabase() {
                   ) : (
                     <div className="text-center py-20">
                       <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                        <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                        <Code className="h-12 w-12 text-slate-400 dark:text-slate-600" />
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 text-sm">
                         Your converted request will appear here
@@ -736,7 +736,7 @@ function Supabase() {
               ) : (
                 <div className="text-center py-20">
                   <div className="inline-flex p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-                    <Database className="h-12 w-12 text-slate-400 dark:text-slate-600" />
+                    <Code className="h-12 w-12 text-slate-400 dark:text-slate-600" />
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-sm">
                     Your converted request will appear here

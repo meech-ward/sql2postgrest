@@ -108,18 +108,36 @@ func convertPostgREST(this js.Value, args []js.Value) interface{} {
 	}
 
 	if len(result.Warnings) > 0 {
-		response["warnings"] = result.Warnings
+		// Convert warnings slice to interface slice for JS
+		warnings := make([]interface{}, len(result.Warnings))
+		for i, w := range result.Warnings {
+			warnings[i] = w
+		}
+		response["warnings"] = warnings
 	}
 
 	if len(result.Metadata) > 0 {
-		response["metadata"] = result.Metadata
+		// Convert metadata map to interface map for JS
+		metadata := make(map[string]interface{})
+		for k, v := range result.Metadata {
+			metadata[k] = v
+		}
+		response["metadata"] = metadata
 	}
 
 	if result.HTTPRequest != nil {
+		// Convert headers map to interface map for JS
+		headers := make(map[string]interface{})
+		if result.HTTPRequest.Headers != nil {
+			for k, v := range result.HTTPRequest.Headers {
+				headers[k] = v
+			}
+		}
+
 		response["http"] = map[string]interface{}{
 			"method":  result.HTTPRequest.Method,
 			"url":     result.HTTPRequest.URL,
-			"headers": result.HTTPRequest.Headers,
+			"headers": headers,
 			"body":    result.HTTPRequest.Body,
 		}
 	}

@@ -110,7 +110,7 @@ WHERE deleted_at IS NULL
 ];
 
 function Index() {
-  const { convert, isLoading, isReady, error: wasmError, startLoading } = useSQL2PostgREST();
+  const { convert, isReady, error: wasmError, startLoading } = useSQL2PostgREST();
   const { theme } = useTheme();
   const [sqlQuery, setSQLQuery] = useState('SELECT * FROM users WHERE age > 18');
   const [baseURL, setBaseURL] = useState('http://localhost:3000');

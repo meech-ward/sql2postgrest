@@ -10,27 +10,37 @@ class SQL2PostgREST {
         if (this.ready) return;
         if (this.readyPromise) return this.readyPromise;
 
-        this.readyPromise = new Promise((resolve, reject) => {
-            const go = new Go();
-            
-            if (typeof WebAssembly.instantiateStreaming === 'function') {
-                WebAssembly.instantiateStreaming(fetch(wasmPath), go.importObject)
-                    .then(result => {
-                        go.run(result.instance);
-                        this.ready = true;
-                        resolve();
-                    })
-                    .catch(reject);
-            } else {
-                fetch(wasmPath)
-                    .then(response => response.arrayBuffer())
-                    .then(bytes => WebAssembly.instantiate(bytes, go.importObject))
-                    .then(result => {
-                        go.run(result.instance);
-                        this.ready = true;
-                        resolve();
-                    })
-                    .catch(reject);
+        this.readyPromise = new Promise(async (resolve, reject) => {
+            try {
+                const go = new Go();
+
+                let result;
+                if (typeof WebAssembly.instantiateStreaming === 'function') {
+                    result = await WebAssembly.instantiateStreaming(fetch(wasmPath), go.importObject);
+                } else {
+                    const response = await fetch(wasmPath);
+                    const bytes = await response.arrayBuffer();
+                    result = await WebAssembly.instantiate(bytes, go.importObject);
+                }
+
+                // Run the WASM module
+                go.run(result.instance);
+
+                // Wait for the WASM functions to be available
+                let attempts = 0;
+                while (!window.postgrest2sql && attempts < 50) {
+                    await new Promise(r => setTimeout(r, 100));
+                    attempts++;
+                }
+
+                if (!window.postgrest2sql) {
+                    throw new Error('postgrest2sql function not available after WASM load');
+                }
+
+                this.ready = true;
+                resolve();
+            } catch (err) {
+                reject(err);
             }
         });
 
@@ -56,22 +66,23 @@ class SQL2PostgREST {
         return this.convert(sql, baseURL);
     }
 
-    // Reverse conversion: PostgREST → SQL
     convertReverse(request) {
         if (!this.ready) {
             throw new Error('WASM not loaded. Call load() first.');
         }
 
-        // Validate input
-        if (!request || typeof request !== 'object') {
-            throw new Error('Request object required: { method, path, query?, body? }');
+        // Check if postgrest2sql function is available
+        if (typeof postgrest2sql === 'undefined') {
+            throw new Error('postgrest2sql function not available. WASM may not be fully initialized.');
         }
 
-        if (!request.path) {
-            throw new Error('path is required in request object');
-        }
-
-        const result = postgrest2sql(request);
+        // Call the postgrest2sql WASM function
+        const result = postgrest2sql({
+            method: request.method || 'GET',
+            path: request.path || '',
+            query: request.query || '',
+            body: request.body || ''
+        });
 
         if (typeof result === 'string') {
             return JSON.parse(result);
