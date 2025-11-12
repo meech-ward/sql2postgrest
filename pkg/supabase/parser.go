@@ -52,13 +52,14 @@ func extractMethodChain(input string) ([]MethodCall, error) {
 	// Match pattern: supabase.from('table').method(args).method(args)...
 
 	// First, find the starting point (either supabase.from or client.from)
-	fromPattern := regexp.MustCompile(`(?:supabase|client)\.from\s*\(\s*['"]([^'"]+)['"]\s*\)`)
+	// Allow optional whitespace before dots to handle multi-line formatting
+	fromPattern := regexp.MustCompile(`(?:supabase|client)\s*\.\s*from\s*\(\s*['"]([^'"]+)['"]\s*\)`)
 	matches := fromPattern.FindStringSubmatch(input)
 	matchIndices := fromPattern.FindStringSubmatchIndex(input)
 
 	if len(matches) < 2 {
 		// Try to find if it's an RPC call
-		rpcPattern := regexp.MustCompile(`(?:supabase|client)\.rpc\s*\(\s*['"]([^'"]+)['"]`)
+		rpcPattern := regexp.MustCompile(`(?:supabase|client)\s*\.\s*rpc\s*\(\s*['"]([^'"]+)['"]`)
 		rpcMatches := rpcPattern.FindStringSubmatch(input)
 		if len(rpcMatches) >= 2 {
 			// Handle RPC separately
@@ -82,8 +83,8 @@ func extractMethodChain(input string) ([]MethodCall, error) {
 	// Extract all method calls
 	methods := []MethodCall{{Name: "from", Args: []string{tableName}}}
 
-	// Pattern to match .method(args)
-	methodPattern := regexp.MustCompile(`\.(\w+)\s*\(([^)]*)\)`)
+	// Pattern to match .method(args) - allow whitespace before dot for multi-line formatting
+	methodPattern := regexp.MustCompile(`\s*\.\s*(\w+)\s*\(([^)]*)\)`)
 	methodMatches := methodPattern.FindAllStringSubmatch(remaining, -1)
 
 	for _, match := range methodMatches {

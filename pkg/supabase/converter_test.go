@@ -652,3 +652,60 @@ func TestConverter_Count(t *testing.T) {
 		})
 	}
 }
+
+func TestConverter_MultiLineFormatting(t *testing.T) {
+	c := NewConverter("http://localhost:3000")
+
+	tests := []struct {
+		name      string
+		input     string
+		wantPath  string
+		wantQuery string
+	}{
+		{
+			name: "multi-line select with filters",
+			input: `supabase
+  .from('users')
+  .select('*')
+  .gt('age', 18)
+  .eq('status', 'active')`,
+			wantPath:  "/users",
+			wantQuery: "select=*&age=gt.18&status=eq.active",
+		},
+		{
+			name: "multi-line with order and limit",
+			input: `supabase
+  .from('posts')
+  .select('title,content')
+  .order('created_at', { ascending: false })
+  .limit(10)`,
+			wantPath:  "/posts",
+			wantQuery: "select=title%2Ccontent&order=created_at.desc&limit=10",
+		},
+		{
+			name: "multi-line insert",
+			input: `supabase
+  .from('users')
+  .insert({ name: 'Alice', email: 'alice@example.com' })
+  .select()`,
+			wantPath: "/users",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := c.Convert(tt.input)
+			if err != nil {
+				t.Fatalf("Convert() error = %v", err)
+			}
+
+			if result.Path != tt.wantPath {
+				t.Errorf("Path = %v, want %v", result.Path, tt.wantPath)
+			}
+
+			if tt.wantQuery != "" && !queryParamsEqual(t, result.Query, tt.wantQuery) {
+				t.Errorf("Query = %v, want %v", result.Query, tt.wantQuery)
+			}
+		})
+	}
+}
