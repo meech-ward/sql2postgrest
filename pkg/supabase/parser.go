@@ -197,7 +197,12 @@ func parseMethod(query *SupabaseQuery, method MethodCall) error {
 		} else {
 			query.Select = []string{"*"}
 		}
-		query.Operation = "select"
+
+		// Only set operation to "select" if no operation is already set
+		// This allows .select() to be used after .insert()/.upsert() for RETURNING clause
+		if query.Operation == "" {
+			query.Operation = "select"
+		}
 
 		// Check for options in second argument (e.g., {count: 'exact'})
 		if len(method.Args) >= 2 {

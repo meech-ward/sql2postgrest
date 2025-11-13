@@ -690,6 +690,19 @@ func TestConverter_MultiLineFormatting(t *testing.T) {
   .select()`,
 			wantPath: "/users",
 		},
+		{
+			name: "multi-line upsert with select",
+			input: `supabase
+  .from('inventory')
+  .upsert([
+    {
+      "product_id": 42,
+      "quantity": 100
+    }
+  ])
+  .select()`,
+			wantPath: "/inventory",
+		},
 	}
 
 	for _, tt := range tests {
