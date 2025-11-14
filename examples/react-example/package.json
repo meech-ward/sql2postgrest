@@ -19,6 +19,7 @@
     "@codemirror/view": "^6.38.4",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-slot": "^1.2.3",
+    "@supabase/supabase-js": "^2.81.1",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-router": "^1.132.41",
     "@tanstack/router-plugin": "^1.132.41",
