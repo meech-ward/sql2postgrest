@@ -124,6 +124,34 @@ function Supabase() {
 
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
+  const formatSQL = (sql: string): string => {
+    // Format SQL with proper line breaks for readability
+    return sql
+      .replace(/\bSELECT\b/gi, 'SELECT')
+      .replace(/\bINSERT INTO\b/gi, 'INSERT INTO')
+      .replace(/\bVALUES\b/gi, '\nVALUES')
+      .replace(/\bUPDATE\b/gi, 'UPDATE')
+      .replace(/\bSET\b/gi, '\nSET')
+      .replace(/\bDELETE FROM\b/gi, 'DELETE FROM')
+      .replace(/\bFROM\b/gi, '\nFROM')
+      .replace(/\bWHERE\b/gi, '\nWHERE')
+      .replace(/\bAND\b/gi, '\n  AND')
+      .replace(/\bOR\b/gi, '\n  OR')
+      .replace(/\bORDER BY\b/gi, '\nORDER BY')
+      .replace(/\bLIMIT\b/gi, '\nLIMIT')
+      .replace(/\bOFFSET\b/gi, '\nOFFSET')
+      .replace(/\bGROUP BY\b/gi, '\nGROUP BY')
+      .replace(/\bHAVING\b/gi, '\nHAVING')
+      .replace(/\bINNER JOIN\b/gi, '\nINNER JOIN')
+      .replace(/\bLEFT JOIN\b/gi, '\nLEFT JOIN')
+      .replace(/\bRIGHT JOIN\b/gi, '\nRIGHT JOIN')
+      .replace(/\bON CONFLICT\b/gi, '\nON CONFLICT')
+      .replace(/\bDO UPDATE SET\b/gi, '\n  DO UPDATE SET')
+      .replace(/\bRETURNING\b/gi, '\nRETURNING')
+      .replace(/\bON\b/gi, '\n  ON')
+      .trim();
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       startLoading();
@@ -491,7 +519,7 @@ function Supabase() {
                       }
                     >
                       <CodeMirror
-                        value={sqlResult.sql}
+                        value={formatSQL(sqlResult.sql)}
                         extensions={[sqlLang()]}
                         theme={isDark ? githubDark : githubLight}
                         editable={false}

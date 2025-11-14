@@ -16,10 +16,22 @@ func NewConverter() *Converter {
 
 // Convert converts a PostgREST request to SQL
 func (c *Converter) Convert(method, path, query, body string) (*SQLResult, error) {
+	return c.ConvertWithHeaders(method, path, query, body, nil)
+}
+
+// ConvertWithHeaders converts a PostgREST request to SQL with headers support
+func (c *Converter) ConvertWithHeaders(method, path, query, body string, headers map[string]string) (*SQLResult, error) {
 	// Parse the PostgREST request
 	req, err := ParsePostgRESTRequest(method, path, query, []byte(body))
 	if err != nil {
 		return nil, err
+	}
+
+	// Add headers to request
+	if headers != nil {
+		for k, v := range headers {
+			req.Headers[k] = v
+		}
 	}
 
 	// Validate the request
@@ -123,12 +135,13 @@ func (c *Converter) convertInsert(req *PostgRESTRequest) (*SQLResult, error) {
 		Metadata: make(map[string]string),
 	}
 
-	sql, err := buildInsertStatement(req)
+	sql, warnings, err := buildInsertStatement(req)
 	if err != nil {
 		return nil, err
 	}
 
 	result.SQL = sql
+	result.Warnings = append(result.Warnings, warnings...)
 	return result, nil
 }
 

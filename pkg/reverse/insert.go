@@ -7,9 +7,11 @@ import (
 )
 
 // buildInsertStatement builds an INSERT statement from a POST request
-func buildInsertStatement(req *PostgRESTRequest) (string, error) {
+func buildInsertStatement(req *PostgRESTRequest) (string, []string, error) {
+	warnings := []string{}
+
 	if req.Body == nil {
-		return "", NewSemanticError(
+		return "", nil, NewSemanticError(
 			"ERR_SEMANTIC_NO_BODY",
 			"POST request requires a body",
 			"",
@@ -17,21 +19,53 @@ func buildInsertStatement(req *PostgRESTRequest) (string, error) {
 		)
 	}
 
+	// Check for upsert (Prefer: resolution=merge-duplicates header)
+	isUpsert := false
+	if prefer, ok := req.Headers["Prefer"]; ok {
+		if strings.Contains(prefer, "resolution=merge-duplicates") {
+			isUpsert = true
+		}
+	}
+
 	// Check if body is a single object or an array (bulk insert)
+	var sql string
+	var err error
+
 	switch body := req.Body.(type) {
 	case map[string]interface{}:
 		// Single row insert
-		return buildSingleInsert(req.Table, body)
+		sql, err = buildSingleInsert(req.Table, body)
 	case []interface{}:
 		// Bulk insert
-		return buildBulkInsert(req.Table, body)
+		sql, err = buildBulkInsert(req.Table, body)
 	default:
-		return "", NewSyntaxError(
+		return "", nil, NewSyntaxError(
 			"invalid body format",
 			fmt.Sprintf("%v", req.Body),
 			"body should be a JSON object or array of objects",
 		)
 	}
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Add ON CONFLICT placeholder if upsert
+	if isUpsert {
+		sql += " ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */"
+		warnings = append(warnings, "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually")
+	}
+
+	// Add RETURNING clause if select parameter is present
+	if req.Select != nil && len(req.Select) > 0 {
+		if len(req.Select) == 1 && req.Select[0] == "*" {
+			sql += " RETURNING *"
+		} else {
+			sql += " RETURNING " + strings.Join(req.Select, ", ")
+		}
+	}
+
+	return sql, warnings, nil
 }
 
 // buildSingleInsert builds an INSERT for a single row

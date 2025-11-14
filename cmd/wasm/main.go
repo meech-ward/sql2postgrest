@@ -86,6 +86,20 @@ func convertPostgREST(this js.Value, args []js.Value) interface{} {
 		body = input.Get("body").String()
 	}
 
+	// Extract headers if present
+	headers := make(map[string]string)
+	if !input.Get("headers").IsUndefined() && !input.Get("headers").IsNull() {
+		headersObj := input.Get("headers")
+		// Iterate over header keys
+		headerKeys := js.Global().Get("Object").Call("keys", headersObj)
+		headerKeysLen := headerKeys.Length()
+		for i := 0; i < headerKeysLen; i++ {
+			key := headerKeys.Index(i).String()
+			value := headersObj.Get(key).String()
+			headers[key] = value
+		}
+	}
+
 	// Validate required fields
 	if path == "" {
 		return map[string]interface{}{
@@ -95,7 +109,7 @@ func convertPostgREST(this js.Value, args []js.Value) interface{} {
 
 	// Convert
 	conv := reverse.NewConverter()
-	result, err := conv.Convert(method, path, query, body)
+	result, err := conv.ConvertWithHeaders(method, path, query, body, headers)
 	if err != nil {
 		return map[string]interface{}{
 			"error": err.Error(),
@@ -253,11 +267,12 @@ func convertSupabaseToSQL(this js.Value, args []js.Value) interface{} {
 
 	// Step 2: Convert PostgREST → SQL
 	reverseConv := reverse.NewConverter()
-	sqlResult, err := reverseConv.Convert(
+	sqlResult, err := reverseConv.ConvertWithHeaders(
 		postgrestResult.Method,
 		postgrestResult.Path,
 		postgrestResult.Query,
 		postgrestResult.Body,
+		postgrestResult.Headers,
 	)
 	if err != nil {
 		return map[string]interface{}{

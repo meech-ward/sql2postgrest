@@ -1,6 +1,7 @@
 package reverse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -403,6 +404,114 @@ func TestSelectParsing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := parseSelectParam(tt.input)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertUpsert(t *testing.T) {
+	tests := []struct {
+		name         string
+		body         string
+		headers      map[string]string
+		query        string
+		expectedSQL  string
+		wantWarnings bool
+		warningMsg   string
+	}{
+		{
+			name: "upsert single row with Prefer header",
+			body: `{"product_id":42,"quantity":100}`,
+			headers: map[string]string{
+				"Prefer": "resolution=merge-duplicates",
+			},
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100) ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */",
+			wantWarnings: true,
+			warningMsg:   "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually",
+		},
+		{
+			name: "upsert with RETURNING clause",
+			body: `{"product_id":42,"quantity":100}`,
+			headers: map[string]string{
+				"Prefer": "resolution=merge-duplicates",
+			},
+			query:        "select=*",
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100) ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */ RETURNING *",
+			wantWarnings: true,
+			warningMsg:   "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually",
+		},
+		{
+			name: "upsert with specific columns in RETURNING",
+			body: `{"product_id":42,"quantity":100}`,
+			headers: map[string]string{
+				"Prefer": "resolution=merge-duplicates",
+			},
+			query:        "select=product_id,quantity",
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100) ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */ RETURNING product_id, quantity",
+			wantWarnings: true,
+			warningMsg:   "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually",
+		},
+		{
+			name: "upsert bulk insert",
+			body: `[{"product_id":42,"quantity":100},{"product_id":43,"quantity":200}]`,
+			headers: map[string]string{
+				"Prefer": "resolution=merge-duplicates",
+			},
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100), (43, 200) ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */",
+			wantWarnings: true,
+			warningMsg:   "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually",
+		},
+		{
+			name:         "regular insert without upsert header",
+			body:         `{"product_id":42,"quantity":100}`,
+			headers:      map[string]string{},
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100)",
+			wantWarnings: false,
+		},
+		{
+			name: "regular insert with RETURNING but no upsert",
+			body: `{"product_id":42,"quantity":100}`,
+			headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			query:        "select=*",
+			expectedSQL:  "INSERT INTO inventory (product_id, quantity) VALUES (42, 100) RETURNING *",
+			wantWarnings: false,
+		},
+	}
+
+	conv := NewConverter()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.ConvertWithHeaders("POST", "/inventory", tt.query, tt.body, tt.headers)
+			require.NoError(t, err)
+
+			// Check that SQL contains expected parts (order of columns may vary due to map iteration)
+			assert.Contains(t, result.SQL, "INSERT INTO inventory")
+			assert.Contains(t, result.SQL, "VALUES")
+
+			// Check ON CONFLICT clause if upsert
+			if strings.Contains(tt.expectedSQL, "ON CONFLICT") {
+				assert.Contains(t, result.SQL, "ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */")
+			} else {
+				assert.NotContains(t, result.SQL, "ON CONFLICT")
+			}
+
+			// Check RETURNING clause
+			if strings.Contains(tt.expectedSQL, "RETURNING *") {
+				assert.Contains(t, result.SQL, "RETURNING *")
+			} else if strings.Contains(tt.expectedSQL, "RETURNING product_id, quantity") {
+				assert.Contains(t, result.SQL, "RETURNING product_id, quantity")
+			} else {
+				assert.NotContains(t, result.SQL, "RETURNING")
+			}
+
+			// Check warnings
+			if tt.wantWarnings {
+				require.Len(t, result.Warnings, 1)
+				assert.Equal(t, tt.warningMsg, result.Warnings[0])
+			} else {
+				assert.Len(t, result.Warnings, 0)
+			}
 		})
 	}
 }
