@@ -123,6 +123,13 @@ func FormatValue(value string, operator string) string {
 		return "(" + strings.Join(formatted, ", ") + ")"
 	}
 
+	// Handle LIKE/ILIKE operators - convert PostgREST wildcards (*) to SQL wildcards (%)
+	if operator == "like" || operator == "ilike" {
+		// PostgREST uses * as wildcard, SQL uses %
+		value = strings.ReplaceAll(value, "*", "%")
+		return formatSingleValue(value)
+	}
+
 	// Handle array/range operators - these might have special formatting
 	if operator == "cs" || operator == "cd" || operator == "ov" {
 		// These expect array or range literals
