@@ -98,6 +98,12 @@ func parseQueryParams(req *PostgRESTRequest, params url.Values) error {
 				return NewSyntaxError("invalid offset value", value, "offset must be an integer")
 			}
 			req.Offset = &offset
+		case "on_conflict":
+			// ON CONFLICT column(s) for UPSERT operations
+			req.OnConflict = &value
+		case "columns":
+			// Columns metadata (typically used with RETURNING clause)
+			req.Columns = &value
 		default:
 			// It's a filter
 			filter, err := parseFilter(key, value)

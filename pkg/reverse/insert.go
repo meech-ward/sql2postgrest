@@ -19,25 +19,50 @@ func buildInsertStatement(req *PostgRESTRequest) (string, []string, error) {
 		)
 	}
 
-	// Check for upsert (Prefer: resolution=merge-duplicates header)
+	// Check for upsert (Prefer: resolution=merge-duplicates header or on_conflict parameter)
 	isUpsert := false
+	var conflictColumns []string
+
 	if prefer, ok := req.Headers["Prefer"]; ok {
 		if strings.Contains(prefer, "resolution=merge-duplicates") {
 			isUpsert = true
 		}
 	}
 
+	// Check for on_conflict parameter (takes precedence)
+	if req.OnConflict != nil && *req.OnConflict != "" {
+		isUpsert = true
+		// Parse conflict columns (can be comma-separated)
+		conflictColumns = strings.Split(*req.OnConflict, ",")
+		for i, col := range conflictColumns {
+			conflictColumns[i] = strings.TrimSpace(col)
+		}
+	}
+
 	// Check if body is a single object or an array (bulk insert)
 	var sql string
 	var err error
+	var bodyColumns []string
 
 	switch body := req.Body.(type) {
 	case map[string]interface{}:
 		// Single row insert
 		sql, err = buildSingleInsert(req.Table, body)
+		// Extract columns from body for ON CONFLICT DO UPDATE
+		for col := range body {
+			bodyColumns = append(bodyColumns, col)
+		}
 	case []interface{}:
 		// Bulk insert
 		sql, err = buildBulkInsert(req.Table, body)
+		// Extract columns from first row for ON CONFLICT DO UPDATE
+		if len(body) > 0 {
+			if firstRow, ok := body[0].(map[string]interface{}); ok {
+				for col := range firstRow {
+					bodyColumns = append(bodyColumns, col)
+				}
+			}
+		}
 	default:
 		return "", nil, NewSyntaxError(
 			"invalid body format",
@@ -50,10 +75,38 @@ func buildInsertStatement(req *PostgRESTRequest) (string, []string, error) {
 		return "", nil, err
 	}
 
-	// Add ON CONFLICT placeholder if upsert
+	// Add ON CONFLICT clause if upsert
 	if isUpsert {
-		sql += " ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */"
-		warnings = append(warnings, "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually")
+		if len(conflictColumns) > 0 {
+			// We have specific conflict columns - generate full ON CONFLICT clause
+			sql += " ON CONFLICT (" + strings.Join(conflictColumns, ", ") + ") DO UPDATE SET "
+
+			// Generate SET clause for all columns except conflict columns
+			var updateCols []string
+			for _, col := range bodyColumns {
+				isConflictCol := false
+				for _, conflictCol := range conflictColumns {
+					if col == conflictCol {
+						isConflictCol = true
+						break
+					}
+				}
+				if !isConflictCol {
+					updateCols = append(updateCols, col+" = EXCLUDED."+col)
+				}
+			}
+
+			if len(updateCols) > 0 {
+				sql += strings.Join(updateCols, ", ")
+			} else {
+				// All columns are conflict columns - just update one of them to itself
+				sql += conflictColumns[0] + " = EXCLUDED." + conflictColumns[0]
+			}
+		} else {
+			// No specific conflict columns - add placeholder
+			sql += " ON CONFLICT (/* conflict_target */) DO UPDATE SET /* update_columns */"
+			warnings = append(warnings, "UPSERT detected but conflict target cannot be determined from PostgREST request - please specify ON CONFLICT clause manually")
+		}
 	}
 
 	// Add RETURNING clause if select parameter is present

@@ -517,3 +517,80 @@ func TestConvertUpsert(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertUpsertWithOnConflict(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		query       string
+		expectedSQL string
+	}{
+		{
+			name:        "upsert with on_conflict single column",
+			body:        `{"product_id":2,"quantity":100}`,
+			query:       "on_conflict=product_id",
+			expectedSQL: "INSERT INTO inventory (product_id, quantity) VALUES (2, 100) ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity",
+		},
+		{
+			name:        "upsert with on_conflict multiple columns",
+			body:        `{"product_id":2,"warehouse_id":5,"quantity":100}`,
+			query:       "on_conflict=product_id,warehouse_id",
+			expectedSQL: "INSERT INTO inventory (product_id, warehouse_id, quantity) VALUES (2, 5, 100) ON CONFLICT (product_id, warehouse_id) DO UPDATE SET quantity = EXCLUDED.quantity",
+		},
+		{
+			name:        "upsert with on_conflict and columns parameter",
+			body:        `{"product_id":2,"quantity":100}`,
+			query:       "on_conflict=product_id&columns=\"product_id\",\"quantity\"",
+			expectedSQL: "INSERT INTO inventory (product_id, quantity) VALUES (2, 100) ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity",
+		},
+		{
+			name:        "upsert with on_conflict and select (RETURNING)",
+			body:        `{"product_id":2,"quantity":100}`,
+			query:       "on_conflict=product_id&select=*",
+			expectedSQL: "INSERT INTO inventory (product_id, quantity) VALUES (2, 100) ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity RETURNING *",
+		},
+		{
+			name:        "bulk upsert with on_conflict",
+			body:        `[{"product_id":2,"quantity":100},{"product_id":3,"quantity":200}]`,
+			query:       "on_conflict=product_id",
+			expectedSQL: "INSERT INTO inventory (product_id, quantity) VALUES (2, 100), (3, 200) ON CONFLICT (product_id) DO UPDATE SET quantity = EXCLUDED.quantity",
+		},
+	}
+
+	conv := NewConverter()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := conv.Convert("POST", "/inventory", tt.query, tt.body)
+			require.NoError(t, err)
+
+			// Check ON CONFLICT clause
+			assert.Contains(t, result.SQL, "ON CONFLICT")
+
+			// Check that conflict columns are specified (not placeholder)
+			assert.NotContains(t, result.SQL, "/* conflict_target */")
+			assert.NotContains(t, result.SQL, "/* update_columns */")
+
+			// Verify the expected SQL structure
+			assert.Contains(t, result.SQL, "INSERT INTO inventory")
+			assert.Contains(t, result.SQL, "VALUES")
+
+			// Check specific ON CONFLICT clause based on test
+			if strings.Contains(tt.expectedSQL, "ON CONFLICT (product_id, warehouse_id)") {
+				assert.Contains(t, result.SQL, "ON CONFLICT (product_id, warehouse_id)")
+			} else if strings.Contains(tt.expectedSQL, "ON CONFLICT (product_id)") {
+				assert.Contains(t, result.SQL, "ON CONFLICT (product_id)")
+			}
+
+			// Check DO UPDATE SET clause
+			assert.Contains(t, result.SQL, "DO UPDATE SET")
+
+			// Check RETURNING clause if present
+			if strings.Contains(tt.expectedSQL, "RETURNING *") {
+				assert.Contains(t, result.SQL, "RETURNING *")
+			}
+
+			// Should not have warnings for on_conflict parameter
+			assert.Len(t, result.Warnings, 0)
+		})
+	}
+}

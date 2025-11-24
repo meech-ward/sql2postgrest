@@ -2,16 +2,18 @@ package reverse
 
 // PostgRESTRequest represents a structured PostgREST HTTP request
 type PostgRESTRequest struct {
-	Method   string              // GET, POST, PATCH, DELETE
-	Table    string              // Table name from path
-	Select   []string            // Columns to select
-	Filters  []Filter            // WHERE conditions
-	Order    []OrderBy           // ORDER BY clauses
-	Limit    *int                // LIMIT value
-	Offset   *int                // OFFSET value
-	Body     interface{}         // Request body for mutations
-	Headers  map[string]string   // HTTP headers
-	Embedded []EmbeddedResource  // Nested resources (JOINs)
+	Method     string              // GET, POST, PATCH, DELETE
+	Table      string              // Table name from path
+	Select     []string            // Columns to select
+	Filters    []Filter            // WHERE conditions
+	Order      []OrderBy           // ORDER BY clauses
+	Limit      *int                // LIMIT value
+	Offset     *int                // OFFSET value
+	Body       interface{}         // Request body for mutations
+	Headers    map[string]string   // HTTP headers
+	Embedded   []EmbeddedResource  // Nested resources (JOINs)
+	OnConflict *string             // ON CONFLICT column(s) for UPSERT
+	Columns    *string             // Columns parameter (metadata for RETURNING)
 }
 
 // Filter represents a WHERE condition
