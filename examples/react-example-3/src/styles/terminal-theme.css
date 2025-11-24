@@ -1,0 +1,72 @@
+/* Terminal component always uses dark theme */
+.terminal-container {
+  background-color: hsl(var(--terminal-background));
+  color: hsl(var(--terminal-foreground));
+  border-left: 1px solid hsl(var(--terminal-border));
+}
+
+.terminal-header {
+  border-bottom: 1px solid hsl(var(--terminal-border));
+  background-color: hsl(var(--terminal-background));
+}
+
+.terminal-editor {
+  background-color: hsl(222.2 47.4% 11.2% / 0.5); /* Slightly lighter */
+  color: hsl(var(--terminal-foreground));
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  caret-color: hsl(var(--terminal-accent));
+}
+
+.terminal-output {
+  background-color: hsl(var(--terminal-background));
+  color: hsl(var(--terminal-foreground));
+}
+
+/* Syntax highlighting classes */
+.syntax-keyword {
+  color: hsl(var(--syntax-keyword));
+}
+
+.syntax-string {
+  color: hsl(var(--syntax-string));
+}
+
+.syntax-number {
+  color: hsl(var(--syntax-number));
+}
+
+.syntax-comment {
+  color: hsl(var(--syntax-comment));
+  font-style: italic;
+}
+
+.syntax-function {
+  color: hsl(var(--syntax-function));
+}
+
+.syntax-operator {
+  color: hsl(var(--syntax-operator));
+}
+
+/* Terminal table styles */
+.terminal-table {
+  border-color: hsl(var(--terminal-border));
+}
+
+.terminal-table th {
+  background-color: hsl(222.2 47.4% 15%);
+  color: hsl(var(--terminal-foreground));
+  border-bottom: 2px solid hsl(var(--terminal-border));
+}
+
+.terminal-table tr:nth-child(even) {
+  background-color: hsl(222.2 47.4% 13%);
+}
+
+.terminal-table tr:nth-child(odd) {
+  background-color: hsl(222.2 47.4% 11.2%);
+}
+
+.terminal-table tr:hover {
+  background-color: hsl(215.3 25% 26.7%);
+}
