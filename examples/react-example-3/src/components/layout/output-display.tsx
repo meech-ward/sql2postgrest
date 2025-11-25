@@ -27,8 +27,8 @@ function CredentialsForm({ onSetCredentials }: { onSetCredentials: (url: string,
   const isValid = url.trim() !== '' && anonKey.trim() !== ''
 
   return (
-    <div className="flex items-center justify-center h-full p-6">
-      <div className="w-full max-w-md">
+    <div className="h-full overflow-auto p-6">
+      <div className="w-full max-w-md mx-auto">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 mb-4">
             <Key className="h-6 w-6 text-emerald-400" />

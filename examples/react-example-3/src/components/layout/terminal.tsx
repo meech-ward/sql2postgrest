@@ -1,4 +1,4 @@
-import { Play, Loader2, Database, Code2, Globe, Terminal as TerminalIcon, ChevronDown, CheckCircle2, Copy, Check } from "lucide-react"
+import { Play, Loader2, Database, Code2, Globe, Terminal as TerminalIcon, ChevronDown, CheckCircle2, Copy, Check, Minimize2, Maximize2, Github } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useStore } from '@tanstack/react-store'
 import {
@@ -21,6 +21,7 @@ import {
 } from '@/stores/terminal-store'
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import type { ImperativePanelHandle } from "react-resizable-panels"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -269,6 +270,11 @@ export function Terminal() {
     supabaseAnonKey,
   } = useStore(terminalStore)
   const initialSyncAttempted = useRef(false)
+
+  // Refs for collapsible output panels
+  const outputPanelRef = useRef<ImperativePanelHandle>(null)
+  const outputPanelMobileRef = useRef<ImperativePanelHandle>(null)
+  const [isOutputCollapsed, setIsOutputCollapsed] = useState(false)
 
   // Detect mobile devices (screen width < 1024px for tablet and below)
   const isMobile = useMediaQuery('(max-width: 1023px)')
@@ -535,6 +541,25 @@ export function Terminal() {
     }
   }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, supabaseUrl, supabaseAnonKey])
 
+  const toggleOutputPanel = useCallback(() => {
+    const panel = isMobile ? outputPanelMobileRef.current : outputPanelRef.current
+    if (!panel) return
+
+    if (isOutputCollapsed) {
+      panel.expand()
+    } else {
+      panel.collapse()
+    }
+  }, [isMobile, isOutputCollapsed])
+
+  const handleOutputCollapse = useCallback(() => {
+    setIsOutputCollapsed(true)
+  }, [])
+
+  const handleOutputExpand = useCallback(() => {
+    setIsOutputCollapsed(false)
+  }, [])
+
   const showLoadingOverlay = isInitializing || (!isReadySQL2PostgREST || !isReadyPostgREST2SQL)
   const loadingStatus = !isReadySQL2PostgREST || !isReadyPostgREST2SQL
     ? 'loading-wasm'
@@ -611,7 +636,15 @@ export function Terminal() {
           <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
           {/* Output */}
-          <ResizablePanel defaultSize={25} minSize={15}>
+          <ResizablePanel
+            ref={outputPanelMobileRef}
+            defaultSize={25}
+            minSize={5}
+            collapsible
+            collapsedSize={5}
+            onCollapse={handleOutputCollapse}
+            onExpand={handleOutputExpand}
+          >
             <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
               {/* Output Header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
@@ -628,7 +661,7 @@ export function Terminal() {
                   )}
                 </div>
 
-                {/* Status indicators */}
+                {/* Status indicators and collapse button */}
                 <div className="flex items-center gap-2 text-[10px] sm:gap-3 sm:text-[11px]">
                   {executionStatus !== null && (
                     <div className="flex items-center gap-1">
@@ -660,6 +693,28 @@ export function Terminal() {
                       {executionTime}ms
                     </span>
                   )}
+                  <a
+                    href="https://github.com/meech-ward/sql2postgrest"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+                    title="View on GitHub"
+                  >
+                    <Github className="h-3.5 w-3.5" />
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleOutputPanel}
+                    className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-500/20"
+                    title={isOutputCollapsed ? "Expand output" : "Collapse output"}
+                  >
+                    {isOutputCollapsed ? (
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
                 </div>
               </div>
 
@@ -743,7 +798,15 @@ export function Terminal() {
           <ResizableHandle className="h-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
 
           {/* Bottom Section: Output */}
-          <ResizablePanel defaultSize={35} minSize={15}>
+          <ResizablePanel
+            ref={outputPanelRef}
+            defaultSize={35}
+            minSize={5}
+            collapsible
+            collapsedSize={5}
+            onCollapse={handleOutputCollapse}
+            onExpand={handleOutputExpand}
+          >
             <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
               {/* Output Header */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
@@ -760,7 +823,7 @@ export function Terminal() {
                   )}
                 </div>
 
-                {/* Status indicators */}
+                {/* Status indicators and collapse button */}
                 <div className="flex items-center gap-3 text-[11px]">
                   {executionStatus !== null && (
                     <div className="flex items-center gap-1.5">
@@ -792,6 +855,28 @@ export function Terminal() {
                       {executionTime}ms
                     </span>
                   )}
+                  <a
+                    href="https://github.com/meech-ward/sql2postgrest"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+                    title="View on GitHub"
+                  >
+                    <Github className="h-3.5 w-3.5" />
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleOutputPanel}
+                    className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-500/20"
+                    title={isOutputCollapsed ? "Expand output" : "Collapse output"}
+                  >
+                    {isOutputCollapsed ? (
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
                 </div>
               </div>
 

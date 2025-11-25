@@ -484,3 +484,40 @@ body[data-panel-group-id] {
     outline-offset: 2px;
   }
 }
+
+/* Custom scrollbar styling for dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(82 82 91 / 0.5) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgb(82 82 91 / 0.5);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(113 113 122 / 0.7);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: rgb(113 113 122 / 0.9);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
