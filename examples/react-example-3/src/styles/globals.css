@@ -391,3 +391,96 @@
 .monaco-editor .monaco-menu {
   z-index: 99999 !important;
 }
+
+/* Mobile optimizations for Monaco Editor */
+@media (max-width: 1023px) {
+  /* Increase touch target sizes for Monaco widgets */
+  .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
+    min-height: 32px !important;
+  }
+
+  /* Better scrollbar for touch */
+  .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  /* Larger minimap for better visibility on tablets */
+  .monaco-editor .minimap {
+    width: 60px !important;
+  }
+
+  /* Hide minimap on very small screens */
+  @media (max-width: 640px) {
+    .monaco-editor .minimap {
+      display: none !important;
+    }
+  }
+
+  /* Increase line height for better readability on mobile */
+  .monaco-editor .view-lines {
+    line-height: 1.6 !important;
+  }
+}
+
+/* Touch-friendly resize handles */
+@media (max-width: 1023px) {
+  /* Vertical resize handles for mobile (4px high with expanded touch area) */
+  [data-panel-group-direction="vertical"] [data-panel-resize-handle-enabled] {
+    height: 4px !important;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Expanded touch area using pseudo-element */
+  [data-panel-group-direction="vertical"] [data-panel-resize-handle-enabled]::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 20px;
+    z-index: 10;
+  }
+
+  /* Visual feedback on touch */
+  [data-panel-resize-handle-enabled]:active {
+    background-color: rgb(59 130 246 / 0.7) !important;
+  }
+}
+
+/* Prevent text selection during panel resize */
+body[data-panel-group-id] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Mobile viewport optimization */
+@media (max-width: 1023px) {
+  /* Ensure full viewport usage */
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  /* Prevent bounce scrolling on iOS */
+  body {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Optimize buttons for touch */
+  button {
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  /* Better focus states for keyboard users on tablets */
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid rgb(59 130 246);
+    outline-offset: 2px;
+  }
+}

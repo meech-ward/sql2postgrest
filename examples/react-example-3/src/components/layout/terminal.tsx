@@ -1,4 +1,4 @@
-import { Play, Loader2, Database, Code2, Globe, Terminal as TerminalIcon, ChevronDown, CheckCircle2 } from "lucide-react"
+import { Play, Loader2, Database, Code2, Globe, Terminal as TerminalIcon, ChevronDown, CheckCircle2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useStore } from '@tanstack/react-store'
 import {
@@ -19,7 +19,7 @@ import {
   setHasInitialSyncCompleted,
   setSupabaseCredentials,
 } from '@/stores/terminal-store'
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import {
   DropdownMenu,
@@ -40,6 +40,7 @@ import { executePostgrestRequest } from "@/lib/execute-query"
 import { sqlToPostgREST, supabaseJsToPostgREST } from "@/lib/editor-conversions"
 import { TerminalLoadingOverlay } from "./terminal-loading-overlay"
 import { QUERY_EXAMPLES, EXAMPLE_CATEGORIES, type QueryExample } from "@/constants/query-examples"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 interface EditorPanelProps {
   title: string
@@ -50,9 +51,27 @@ interface EditorPanelProps {
   isExecuting?: boolean
   badge?: string
   examplesDropdown?: React.ReactNode
+  onCopy?: () => string
+  copyDropdown?: React.ReactNode
 }
 
-function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, badge, examplesDropdown }: EditorPanelProps) {
+function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, badge, examplesDropdown, onCopy, copyDropdown }: EditorPanelProps) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async () => {
+    if (!onCopy) return
+    const text = onCopy()
+    if (!text) return
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [onCopy])
+
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
       {/* Header */}
@@ -70,6 +89,22 @@ function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, b
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {examplesDropdown}
+          {copyDropdown}
+          {onCopy && (
+            <Button
+              size="sm"
+              onClick={handleCopy}
+              className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 hover:text-gray-300 border border-gray-500/20 hover:border-gray-500/40 transition-all"
+              title="Copy"
+            >
+              {copied ? (
+                <Check className="h-3 w-3 text-emerald-400" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+              <span className="hidden sm:inline">{copied ? "Copied!" : "Copy"}</span>
+            </Button>
+          )}
           {onRun && (
             <Button
               size="sm"
@@ -92,6 +127,67 @@ function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, b
         {children}
       </div>
     </div>
+  )
+}
+
+type CopyFormat = 'curl' | 'fetch' | 'json' | 'url'
+
+interface CopyFormatDropdownProps {
+  getContent: (format: CopyFormat) => string
+}
+
+function CopyFormatDropdown({ getContent }: CopyFormatDropdownProps) {
+  const [copied, setCopied] = useState<CopyFormat | null>(null)
+
+  const handleCopy = useCallback(async (format: CopyFormat) => {
+    const text = getContent(format)
+    if (!text) return
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(format)
+      setTimeout(() => setCopied(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [getContent])
+
+  const formatLabels: Record<CopyFormat, string> = {
+    curl: 'cURL',
+    fetch: 'JS Fetch',
+    json: 'JSON',
+    url: 'URL Only',
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 hover:text-gray-300 border border-gray-500/20 hover:border-gray-500/40 transition-all"
+        >
+          <Copy className="h-3 w-3" />
+          <span className="hidden sm:inline">Copy</span>
+          <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="bg-[#252526] border-[#3d3d3d] min-w-[140px]">
+        <DropdownMenuLabel className="text-[10px] text-gray-500 font-normal">Copy as...</DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-[#3d3d3d]" />
+        {(Object.keys(formatLabels) as CopyFormat[]).map((format) => (
+          <DropdownMenuItem
+            key={format}
+            onClick={() => handleCopy(format)}
+            className="text-xs text-gray-300 hover:bg-[#3d3d3d] cursor-pointer flex items-center justify-between"
+          >
+            <span>{formatLabels[format]}</span>
+            {copied === format && (
+              <Check className="h-3 w-3 text-emerald-400" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -173,6 +269,9 @@ export function Terminal() {
     supabaseAnonKey,
   } = useStore(terminalStore)
   const initialSyncAttempted = useRef(false)
+
+  // Detect mobile devices (screen width < 1024px for tablet and below)
+  const isMobile = useMediaQuery('(max-width: 1023px)')
 
   // Check if credentials are set
   const hasCredentials = supabaseUrl.trim() !== '' && supabaseAnonKey.trim() !== ''
@@ -348,6 +447,94 @@ export function Terminal() {
     setExecutionError(result.error)
   }
 
+  // Copy handlers
+  const handleCopySql = useCallback(() => {
+    return sqlCode
+  }, [sqlCode])
+
+  const handleCopyJs = useCallback(() => {
+    return jsCode
+  }, [jsCode])
+
+  const getPostgrestCopyContent = useCallback((format: CopyFormat): string => {
+    if (!postgrestPath.trim()) return ''
+
+    // Build the full URL
+    const baseUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : '<your-project-url>'
+    const cleanPath = postgrestPath.startsWith('/rest/v1') ? postgrestPath : `/rest/v1${postgrestPath}`
+    const fullUrl = `${baseUrl}${cleanPath}`
+
+    // Standard headers
+    const anonKeyDisplay = supabaseAnonKey || '<your-api-key>'
+    const allHeaders: Record<string, string> = {
+      'apikey': anonKeyDisplay,
+      'Authorization': `Bearer ${anonKeyDisplay}`,
+      'Content-Type': 'application/json',
+    }
+
+    // Add custom headers
+    if (postgrestHeaders && typeof postgrestHeaders === 'object') {
+      Object.entries(postgrestHeaders).forEach(([key, value]) => {
+        if (!['apikey', 'authorization', 'content-type'].includes(key.toLowerCase())) {
+          allHeaders[key] = value
+        }
+      })
+    }
+
+    const hasBody = postgrestBody && (postgrestMethod === 'POST' || postgrestMethod === 'PATCH')
+
+    switch (format) {
+      case 'curl': {
+        const parts: string[] = ['curl']
+        if (postgrestMethod !== 'GET') {
+          parts.push(`-X ${postgrestMethod}`)
+        }
+        parts.push(`'${fullUrl}'`)
+        Object.entries(allHeaders).forEach(([key, value]) => {
+          parts.push(`-H '${key}: ${value}'`)
+        })
+        if (hasBody) {
+          const escapedBody = postgrestBody.replace(/'/g, "'\\''")
+          parts.push(`-d '${escapedBody}'`)
+        }
+        return parts.join(' \\\n  ')
+      }
+
+      case 'fetch': {
+        const fetchOptions: string[] = []
+        fetchOptions.push(`  method: '${postgrestMethod}'`)
+        fetchOptions.push(`  headers: ${JSON.stringify(allHeaders, null, 4).split('\n').join('\n  ')}`)
+        if (hasBody) {
+          fetchOptions.push(`  body: JSON.stringify(${postgrestBody})`)
+        }
+        return `fetch('${fullUrl}', {\n${fetchOptions.join(',\n')}\n})`
+      }
+
+      case 'json': {
+        const jsonObj: Record<string, unknown> = {
+          method: postgrestMethod,
+          url: fullUrl,
+          headers: allHeaders,
+        }
+        if (hasBody) {
+          try {
+            jsonObj.body = JSON.parse(postgrestBody)
+          } catch {
+            jsonObj.body = postgrestBody
+          }
+        }
+        return JSON.stringify(jsonObj, null, 2)
+      }
+
+      case 'url': {
+        return fullUrl
+      }
+
+      default:
+        return ''
+    }
+  }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, supabaseUrl, supabaseAnonKey])
+
   const showLoadingOverlay = isInitializing || (!isReadySQL2PostgREST || !isReadyPostgREST2SQL)
   const loadingStatus = !isReadySQL2PostgREST || !isReadyPostgREST2SQL
     ? 'loading-wasm'
@@ -364,134 +551,265 @@ export function Terminal() {
         />
       )}
 
-      {/* Main Layout: Editors on top, Output on bottom */}
-      <ResizablePanelGroup direction="vertical" className="flex-1">
+      {/* Main Layout: Responsive based on screen size */}
+      {isMobile ? (
+        /* Mobile Layout: All panels stacked vertically */
+        <ResizablePanelGroup direction="vertical" className="flex-1">
 
-        {/* Top Section: Three Editors Side by Side */}
-        <ResizablePanel defaultSize={65} minSize={30}>
-          <ResizablePanelGroup direction="horizontal">
+          {/* SQL Editor */}
+          <ResizablePanel defaultSize={25} minSize={15}>
+            <EditorPanel
+              title="SQL"
+              icon={<Database className="h-3.5 w-3.5" />}
+              accentColor="text-blue-400"
+              onRun={handleRunSql}
+              isExecuting={isExecuting}
+              badge="PostgreSQL"
+              examplesDropdown={<ExamplesDropdown onSelect={handleSelectSqlExample} variant="sql" />}
+              onCopy={handleCopySql}
+            >
+              <SqlEditor value={sqlCode} onChange={handleSqlCodeChange} onRun={handleRunSql} />
+            </EditorPanel>
+          </ResizablePanel>
 
-            {/* SQL Editor */}
-            <ResizablePanel defaultSize={33} minSize={20}>
-              <EditorPanel
-                title="SQL"
-                icon={<Database className="h-3.5 w-3.5" />}
-                accentColor="text-blue-400"
-                onRun={handleRunSql}
-                isExecuting={isExecuting}
-                badge="PostgreSQL"
-                examplesDropdown={<ExamplesDropdown onSelect={handleSelectSqlExample} variant="sql" />}
-              >
-                <SqlEditor value={sqlCode} onChange={handleSqlCodeChange} onRun={handleRunSql} />
-              </EditorPanel>
-            </ResizablePanel>
+          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
-            <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+          {/* Supabase JS Editor */}
+          <ResizablePanel defaultSize={25} minSize={15}>
+            <EditorPanel
+              title="Supabase JS"
+              icon={<Code2 className="h-3.5 w-3.5" />}
+              accentColor="text-emerald-400"
+              onRun={handleRunJs}
+              isExecuting={isExecuting}
+              badge="TypeScript"
+              examplesDropdown={<ExamplesDropdown onSelect={handleSelectJsExample} variant="js" />}
+              onCopy={handleCopyJs}
+            >
+              <TypeScriptEditor value={jsCode} onChange={handleJsCodeChange} onRun={handleRunJs} />
+            </EditorPanel>
+          </ResizablePanel>
 
-            {/* Supabase JS Editor */}
-            <ResizablePanel defaultSize={34} minSize={20}>
-              <EditorPanel
-                title="Supabase JS"
-                icon={<Code2 className="h-3.5 w-3.5" />}
-                accentColor="text-emerald-400"
-                onRun={handleRunJs}
-                isExecuting={isExecuting}
-                badge="TypeScript"
-                examplesDropdown={<ExamplesDropdown onSelect={handleSelectJsExample} variant="js" />}
-              >
-                <TypeScriptEditor value={jsCode} onChange={handleJsCodeChange} onRun={handleRunJs} />
-              </EditorPanel>
-            </ResizablePanel>
+          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
-            <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+          {/* PostgREST Editor */}
+          <ResizablePanel defaultSize={25} minSize={15}>
+            <EditorPanel
+              title="PostgREST"
+              icon={<Globe className="h-3.5 w-3.5" />}
+              accentColor="text-orange-400"
+              onRun={handleRunPostgrest}
+              isExecuting={isExecuting}
+              badge="HTTP"
+              examplesDropdown={<ExamplesDropdown onSelect={handleSelectPostgrestExample} variant="postgrest" />}
+              copyDropdown={<CopyFormatDropdown getContent={getPostgrestCopyContent} />}
+            >
+              <PostgrestPane />
+            </EditorPanel>
+          </ResizablePanel>
 
-            {/* PostgREST Editor */}
-            <ResizablePanel defaultSize={33} minSize={20}>
-              <EditorPanel
-                title="PostgREST"
-                icon={<Globe className="h-3.5 w-3.5" />}
-                accentColor="text-orange-400"
-                onRun={handleRunPostgrest}
-                isExecuting={isExecuting}
-                badge="HTTP"
-                examplesDropdown={<ExamplesDropdown onSelect={handleSelectPostgrestExample} variant="postgrest" />}
-              >
-                <PostgrestPane />
-              </EditorPanel>
-            </ResizablePanel>
+          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
-          </ResizablePanelGroup>
-        </ResizablePanel>
-
-        <ResizableHandle className="h-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
-
-        {/* Bottom Section: Output */}
-        <ResizablePanel defaultSize={35} minSize={15}>
-          <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
-            {/* Output Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
-              <div className="flex items-center gap-2">
-                <div className="text-purple-400">
-                  <TerminalIcon className="h-3.5 w-3.5" />
+          {/* Output */}
+          <ResizablePanel defaultSize={25} minSize={15}>
+            <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+              {/* Output Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
+                <div className="flex items-center gap-2">
+                  <div className="text-purple-400">
+                    <TerminalIcon className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-300">Output</span>
+                  {hasCredentials && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2">
+                      <CheckCircle2 className="h-3 w-3" />
+                      <span className="hidden sm:inline">Connected</span>
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs font-medium text-gray-300">Output</span>
-                {hasCredentials && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2">
-                    <CheckCircle2 className="h-3 w-3" />
-                    <span>Connected</span>
-                  </div>
-                )}
-              </div>
 
-              {/* Status indicators */}
-              <div className="flex items-center gap-3 text-[11px]">
-                {executionStatus !== null && (
-                  <div className="flex items-center gap-1.5">
-                    <div className={`h-1.5 w-1.5 rounded-full ${
-                      executionStatus >= 200 && executionStatus < 300
-                        ? 'bg-emerald-400'
-                        : executionStatus >= 400 && executionStatus < 500
-                        ? 'bg-yellow-400'
-                        : 'bg-red-400'
-                    }`} />
-                    <span className={
-                      executionStatus >= 200 && executionStatus < 300
-                        ? 'text-emerald-400'
-                        : executionStatus >= 400 && executionStatus < 500
-                        ? 'text-yellow-400'
-                        : 'text-red-400'
-                    }>
-                      {executionStatus} {executionStatusText}
+                {/* Status indicators */}
+                <div className="flex items-center gap-2 text-[10px] sm:gap-3 sm:text-[11px]">
+                  {executionStatus !== null && (
+                    <div className="flex items-center gap-1">
+                      <div className={`h-1.5 w-1.5 rounded-full ${
+                        executionStatus >= 200 && executionStatus < 300
+                          ? 'bg-emerald-400'
+                          : executionStatus >= 400 && executionStatus < 500
+                          ? 'bg-yellow-400'
+                          : 'bg-red-400'
+                      }`} />
+                      <span className={
+                        executionStatus >= 200 && executionStatus < 300
+                          ? 'text-emerald-400'
+                          : executionStatus >= 400 && executionStatus < 500
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                      }>
+                        {executionStatus}
+                      </span>
+                    </div>
+                  )}
+                  {rowCount !== null && (
+                    <span className="text-gray-500 hidden sm:inline">
+                      {rowCount} {rowCount === 1 ? 'row' : 'rows'}
                     </span>
-                  </div>
-                )}
-                {rowCount !== null && (
-                  <span className="text-gray-500">
-                    {rowCount} {rowCount === 1 ? 'row' : 'rows'}
-                  </span>
-                )}
-                {executionTime !== null && (
-                  <span className="text-gray-500 font-mono">
-                    {executionTime}ms
-                  </span>
-                )}
+                  )}
+                  {executionTime !== null && (
+                    <span className="text-gray-500 font-mono">
+                      {executionTime}ms
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Output Content */}
+              <div className="flex-1 overflow-hidden bg-[#0d0d0d]">
+                <OutputDisplay
+                  isExecuting={isExecuting}
+                  data={outputData}
+                  error={executionError}
+                  hasCredentials={hasCredentials}
+                  onSetCredentials={handleSetCredentials}
+                />
               </div>
             </div>
+          </ResizablePanel>
 
-            {/* Output Content */}
-            <div className="flex-1 overflow-hidden bg-[#0d0d0d]">
-              <OutputDisplay
-                isExecuting={isExecuting}
-                data={outputData}
-                error={executionError}
-                hasCredentials={hasCredentials}
-                onSetCredentials={handleSetCredentials}
-              />
+        </ResizablePanelGroup>
+      ) : (
+        /* Desktop Layout: Editors on top (horizontal), Output on bottom */
+        <ResizablePanelGroup direction="vertical" className="flex-1">
+
+          {/* Top Section: Three Editors Side by Side */}
+          <ResizablePanel defaultSize={65} minSize={30}>
+            <ResizablePanelGroup direction="horizontal">
+
+              {/* SQL Editor */}
+              <ResizablePanel defaultSize={33} minSize={20}>
+                <EditorPanel
+                  title="SQL"
+                  icon={<Database className="h-3.5 w-3.5" />}
+                  accentColor="text-blue-400"
+                  onRun={handleRunSql}
+                  isExecuting={isExecuting}
+                  badge="PostgreSQL"
+                  examplesDropdown={<ExamplesDropdown onSelect={handleSelectSqlExample} variant="sql" />}
+                  onCopy={handleCopySql}
+                >
+                  <SqlEditor value={sqlCode} onChange={handleSqlCodeChange} onRun={handleRunSql} />
+                </EditorPanel>
+              </ResizablePanel>
+
+              <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+
+              {/* Supabase JS Editor */}
+              <ResizablePanel defaultSize={34} minSize={20}>
+                <EditorPanel
+                  title="Supabase JS"
+                  icon={<Code2 className="h-3.5 w-3.5" />}
+                  accentColor="text-emerald-400"
+                  onRun={handleRunJs}
+                  isExecuting={isExecuting}
+                  badge="TypeScript"
+                  examplesDropdown={<ExamplesDropdown onSelect={handleSelectJsExample} variant="js" />}
+                  onCopy={handleCopyJs}
+                >
+                  <TypeScriptEditor value={jsCode} onChange={handleJsCodeChange} onRun={handleRunJs} />
+                </EditorPanel>
+              </ResizablePanel>
+
+              <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+
+              {/* PostgREST Editor */}
+              <ResizablePanel defaultSize={33} minSize={20}>
+                <EditorPanel
+                  title="PostgREST"
+                  icon={<Globe className="h-3.5 w-3.5" />}
+                  accentColor="text-orange-400"
+                  onRun={handleRunPostgrest}
+                  isExecuting={isExecuting}
+                  badge="HTTP"
+                  examplesDropdown={<ExamplesDropdown onSelect={handleSelectPostgrestExample} variant="postgrest" />}
+                  copyDropdown={<CopyFormatDropdown getContent={getPostgrestCopyContent} />}
+                >
+                  <PostgrestPane />
+                </EditorPanel>
+              </ResizablePanel>
+
+            </ResizablePanelGroup>
+          </ResizablePanel>
+
+          <ResizableHandle className="h-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+
+          {/* Bottom Section: Output */}
+          <ResizablePanel defaultSize={35} minSize={15}>
+            <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+              {/* Output Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
+                <div className="flex items-center gap-2">
+                  <div className="text-purple-400">
+                    <TerminalIcon className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-300">Output</span>
+                  {hasCredentials && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2">
+                      <CheckCircle2 className="h-3 w-3" />
+                      <span>Connected</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status indicators */}
+                <div className="flex items-center gap-3 text-[11px]">
+                  {executionStatus !== null && (
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-1.5 w-1.5 rounded-full ${
+                        executionStatus >= 200 && executionStatus < 300
+                          ? 'bg-emerald-400'
+                          : executionStatus >= 400 && executionStatus < 500
+                          ? 'bg-yellow-400'
+                          : 'bg-red-400'
+                      }`} />
+                      <span className={
+                        executionStatus >= 200 && executionStatus < 300
+                          ? 'text-emerald-400'
+                          : executionStatus >= 400 && executionStatus < 500
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                      }>
+                        {executionStatus} {executionStatusText}
+                      </span>
+                    </div>
+                  )}
+                  {rowCount !== null && (
+                    <span className="text-gray-500">
+                      {rowCount} {rowCount === 1 ? 'row' : 'rows'}
+                    </span>
+                  )}
+                  {executionTime !== null && (
+                    <span className="text-gray-500 font-mono">
+                      {executionTime}ms
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Output Content */}
+              <div className="flex-1 overflow-hidden bg-[#0d0d0d]">
+                <OutputDisplay
+                  isExecuting={isExecuting}
+                  data={outputData}
+                  error={executionError}
+                  hasCredentials={hasCredentials}
+                  onSetCredentials={handleSetCredentials}
+                />
+              </div>
             </div>
-          </div>
-        </ResizablePanel>
+          </ResizablePanel>
 
-      </ResizablePanelGroup>
+        </ResizablePanelGroup>
+      )}
     </div>
   )
 }
