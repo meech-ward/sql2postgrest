@@ -259,6 +259,7 @@ export function Terminal() {
     postgrestPath,
     postgrestBody,
     postgrestHeaders,
+    customHeaders,
     isExecuting,
     outputData,
     executionStatus,
@@ -402,7 +403,7 @@ export function Terminal() {
       request.method,
       `${request.path}${request.query ? `?${request.query}` : ''}`,
       request.body,
-      request.headers,
+      { ...request.headers, ...customHeaders },
       credentials
     )
 
@@ -437,7 +438,7 @@ export function Terminal() {
       request.method,
       `${request.path}${request.query ? `?${request.query}` : ''}`,
       request.body,
-      request.headers,
+      { ...request.headers, ...customHeaders },
       credentials
     )
 
@@ -458,11 +459,12 @@ export function Terminal() {
 
     setIsExecuting(true)
 
+    const mergedHeaders = { ...postgrestHeaders, ...customHeaders }
     const result = await executePostgrestRequest(
       postgrestMethod,
       postgrestPath,
       postgrestBody,
-      postgrestHeaders,
+      mergedHeaders,
       credentials
     )
 
@@ -505,16 +507,22 @@ export function Terminal() {
       fullUrl = `${baseUrl}${postgrestPath}`
     }
 
-    // Add custom headers
+    // Add conversion-generated headers
     if (postgrestHeaders && typeof postgrestHeaders === 'object') {
       Object.entries(postgrestHeaders).forEach(([key, value]) => {
         if (!['content-type'].includes(key.toLowerCase())) {
-          // In supabase mode, don't let custom headers override auth headers
           if (connectionMode === 'supabase' && ['apikey', 'authorization'].includes(key.toLowerCase())) {
             return
           }
           allHeaders[key] = value
         }
+      })
+    }
+
+    // Add user's custom headers (these always win)
+    if (customHeaders && typeof customHeaders === 'object') {
+      Object.entries(customHeaders).forEach(([key, value]) => {
+        allHeaders[key] = value
       })
     }
 
@@ -570,7 +578,7 @@ export function Terminal() {
       default:
         return ''
     }
-  }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, connectionMode, supabaseUrl, supabaseAnonKey, postgrestEndpointUrl])
+  }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, customHeaders, connectionMode, supabaseUrl, supabaseAnonKey, postgrestEndpointUrl])
 
   const toggleOutputPanel = useCallback(() => {
     const panel = isMobile ? outputPanelMobileRef.current : outputPanelRef.current

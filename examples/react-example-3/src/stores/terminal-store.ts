@@ -13,6 +13,7 @@ interface TerminalState {
   postgrestPath: string
   postgrestBody: string
   postgrestHeaders: Record<string, string>
+  customHeaders: Record<string, string>
   // Sync State
   lastEditedEditor: 'sql' | 'js' | 'postgrest' | null
   syncInProgress: boolean
@@ -100,6 +101,7 @@ const initialState: TerminalState = {
   postgrestPath: '',
   postgrestBody: '',
   postgrestHeaders: {},
+  customHeaders: {},
   // Sync State
   lastEditedEditor: null,
   syncInProgress: false,
@@ -181,6 +183,10 @@ export const clearJsEditor = () => {
 
 export const setPostgrestHeaders = (headers: Record<string, string>) => {
   terminalStore.setState((state) => ({ ...state, postgrestHeaders: headers }))
+}
+
+export const setCustomHeaders = (headers: Record<string, string>) => {
+  terminalStore.setState((state) => ({ ...state, customHeaders: headers }))
 }
 
 export const setLastEditedEditor = (editor: 'sql' | 'js' | 'postgrest' | null) => {

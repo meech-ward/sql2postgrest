@@ -1,5 +1,5 @@
 import { useStore } from '@tanstack/react-store'
-import { terminalStore, setPostgrestMethod, setPostgrestPath, setPostgrestBody, setPostgrestHeaders, setLastEditedEditor } from '@/stores/terminal-store'
+import { terminalStore, setPostgrestMethod, setPostgrestPath, setPostgrestBody, setCustomHeaders, setLastEditedEditor } from '@/stores/terminal-store'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Editor from '@monaco-editor/react'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 
 export function PostgrestPane() {
-  const { postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, syncInProgress, connectionMode } = useStore(terminalStore)
+  const { postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, customHeaders, syncInProgress, connectionMode } = useStore(terminalStore)
   const [newHeaderKey, setNewHeaderKey] = useState('')
   const [newHeaderValue, setNewHeaderValue] = useState('')
   const [showHeaders, setShowHeaders] = useState(false)
@@ -36,25 +36,19 @@ export function PostgrestPane() {
 
   const handleAddHeader = () => {
     if (newHeaderKey.trim() && newHeaderValue.trim()) {
-      setPostgrestHeaders({
-        ...postgrestHeaders,
+      setCustomHeaders({
+        ...customHeaders,
         [newHeaderKey.trim()]: newHeaderValue.trim()
       })
       setNewHeaderKey('')
       setNewHeaderValue('')
-      if (!syncInProgress) {
-        setLastEditedEditor('postgrest')
-      }
     }
   }
 
   const handleRemoveHeader = (key: string) => {
-    const newHeaders = { ...postgrestHeaders }
+    const newHeaders = { ...customHeaders }
     delete newHeaders[key]
-    setPostgrestHeaders(newHeaders)
-    if (!syncInProgress) {
-      setLastEditedEditor('postgrest')
-    }
+    setCustomHeaders(newHeaders)
   }
 
   const methodColors: Record<string, string> = {
@@ -64,7 +58,9 @@ export function PostgrestPane() {
     DELETE: 'text-red-400 bg-red-400/10 border-red-400/30',
   }
 
-  const headerCount = Object.keys(postgrestHeaders).length
+  const allHeaders = { ...postgrestHeaders, ...customHeaders }
+  const headerCount = Object.keys(allHeaders).length
+  const customHeaderCount = Object.keys(customHeaders).length
 
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e] text-white">
@@ -107,9 +103,18 @@ export function PostgrestPane() {
 
         {showHeaders && (
           <div className="px-2 pb-2 space-y-1.5">
-            {/* Existing Headers */}
+            {/* Conversion-generated headers (read-only) */}
             {Object.entries(postgrestHeaders).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2 text-[10px] font-mono group">
+              <div key={`conv-${key}`} className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="text-gray-500 min-w-[80px]">{key}</span>
+                <span className="text-gray-600">:</span>
+                <span className="text-gray-500 flex-1 truncate">{value}</span>
+                <span className="text-[8px] text-gray-600 italic">auto</span>
+              </div>
+            ))}
+            {/* Custom headers (user-managed) */}
+            {Object.entries(customHeaders).map(([key, value]) => (
+              <div key={`custom-${key}`} className="flex items-center gap-2 text-[10px] font-mono group">
                 <span className="text-blue-400 min-w-[80px]">{key}</span>
                 <span className="text-gray-500">:</span>
                 <span className="text-gray-300 flex-1 truncate">{value}</span>
