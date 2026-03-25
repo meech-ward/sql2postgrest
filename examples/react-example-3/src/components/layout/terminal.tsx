@@ -18,6 +18,8 @@ import {
   setIsInitializing,
   setHasInitialSyncCompleted,
   setSupabaseCredentials,
+  setConnectionMode,
+  setPostgrestEndpointUrl,
 } from '@/stores/terminal-store'
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -37,7 +39,7 @@ import { TypeScriptEditor } from "@/components/editors/typescript-editor"
 import { useSQL2PostgREST } from "@/hooks/useSQL2PostgREST"
 import { usePostgREST2SQL } from "@/hooks/usePostgREST2SQL"
 import { useEditorSync } from "@/hooks/useEditorSync"
-import { executePostgrestRequest } from "@/lib/execute-query"
+import { executePostgrestRequest, type ConnectionCredentials } from "@/lib/execute-query"
 import { sqlToPostgREST, supabaseJsToPostgREST } from "@/lib/editor-conversions"
 import { TerminalLoadingOverlay } from "./terminal-loading-overlay"
 import { QUERY_EXAMPLES, EXAMPLE_CATEGORIES, type QueryExample } from "@/constants/query-examples"
@@ -266,8 +268,10 @@ export function Terminal() {
     executionError,
     isInitializing,
     hasInitialSyncCompleted,
+    connectionMode,
     supabaseUrl,
     supabaseAnonKey,
+    postgrestEndpointUrl,
   } = useStore(terminalStore)
   const initialSyncAttempted = useRef(false)
 
@@ -280,10 +284,25 @@ export function Terminal() {
   const isMobile = useMediaQuery('(max-width: 1023px)')
 
   // Check if credentials are set
-  const hasCredentials = supabaseUrl.trim() !== '' && supabaseAnonKey.trim() !== ''
+  const hasCredentials = connectionMode === 'supabase'
+    ? supabaseUrl.trim() !== '' && supabaseAnonKey.trim() !== ''
+    : postgrestEndpointUrl.trim() !== ''
 
-  const handleSetCredentials = useCallback((url: string, anonKey: string) => {
+  // Build credentials object for execution
+  const credentials: ConnectionCredentials = connectionMode === 'supabase'
+    ? { mode: 'supabase', url: supabaseUrl, anonKey: supabaseAnonKey }
+    : { mode: 'postgrest', url: postgrestEndpointUrl }
+
+  const handleSetConnectionMode = useCallback((mode: 'supabase' | 'postgrest') => {
+    setConnectionMode(mode)
+  }, [])
+
+  const handleSetSupabaseCredentials = useCallback((url: string, anonKey: string) => {
     setSupabaseCredentials(url, anonKey)
+  }, [])
+
+  const handleSetPostgrestEndpoint = useCallback((url: string) => {
+    setPostgrestEndpointUrl(url)
   }, [])
 
   const { convert: convertSQL2PostgREST, isReady: isReadySQL2PostgREST, startLoading: startLoadingSQL2PostgREST } = useSQL2PostgREST();
@@ -363,11 +382,12 @@ export function Terminal() {
   const handleRunSql = async () => {
     if (!sqlCode.trim()) return
     if (!hasCredentials) {
-      setExecutionError('Please enter your Supabase credentials first')
+      setExecutionError('Please enter your connection credentials first')
       return
     }
 
-    const postgrestResult = sqlToPostgREST(sqlCode, supabaseUrl, convertSQL2PostgREST)
+    const baseUrl = connectionMode === 'supabase' ? supabaseUrl : postgrestEndpointUrl
+    const postgrestResult = sqlToPostgREST(sqlCode, baseUrl, convertSQL2PostgREST)
 
     if (!postgrestResult.success || !postgrestResult.data) {
       setExecutionError(postgrestResult.error || 'Failed to convert SQL to PostgREST')
@@ -383,7 +403,7 @@ export function Terminal() {
       `${request.path}${request.query ? `?${request.query}` : ''}`,
       request.body,
       request.headers,
-      { url: supabaseUrl, anonKey: supabaseAnonKey }
+      credentials
     )
 
     setIsExecuting(false)
@@ -397,11 +417,12 @@ export function Terminal() {
   const handleRunJs = async () => {
     if (!jsCode.trim()) return
     if (!hasCredentials) {
-      setExecutionError('Please enter your Supabase credentials first')
+      setExecutionError('Please enter your connection credentials first')
       return
     }
 
-    const postgrestResult = await supabaseJsToPostgREST(jsCode, supabaseUrl)
+    const baseUrl = connectionMode === 'supabase' ? supabaseUrl : postgrestEndpointUrl
+    const postgrestResult = await supabaseJsToPostgREST(jsCode, baseUrl)
 
     if (!postgrestResult.success || !postgrestResult.data) {
       setExecutionError(postgrestResult.error || 'Failed to convert JS to PostgREST')
@@ -417,7 +438,7 @@ export function Terminal() {
       `${request.path}${request.query ? `?${request.query}` : ''}`,
       request.body,
       request.headers,
-      { url: supabaseUrl, anonKey: supabaseAnonKey }
+      credentials
     )
 
     setIsExecuting(false)
@@ -431,7 +452,7 @@ export function Terminal() {
   const handleRunPostgrest = async () => {
     if (!postgrestPath.trim()) return
     if (!hasCredentials) {
-      setExecutionError('Please enter your Supabase credentials first')
+      setExecutionError('Please enter your connection credentials first')
       return
     }
 
@@ -442,7 +463,7 @@ export function Terminal() {
       postgrestPath,
       postgrestBody,
       postgrestHeaders,
-      { url: supabaseUrl, anonKey: supabaseAnonKey }
+      credentials
     )
 
     setIsExecuting(false)
@@ -465,23 +486,33 @@ export function Terminal() {
   const getPostgrestCopyContent = useCallback((format: CopyFormat): string => {
     if (!postgrestPath.trim()) return ''
 
-    // Build the full URL
-    const baseUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : '<your-project-url>'
-    const cleanPath = postgrestPath.startsWith('/rest/v1') ? postgrestPath : `/rest/v1${postgrestPath}`
-    const fullUrl = `${baseUrl}${cleanPath}`
-
-    // Standard headers
-    const anonKeyDisplay = supabaseAnonKey || '<your-api-key>'
+    // Build the full URL based on connection mode
+    let fullUrl: string
     const allHeaders: Record<string, string> = {
-      'apikey': anonKeyDisplay,
-      'Authorization': `Bearer ${anonKeyDisplay}`,
       'Content-Type': 'application/json',
+    }
+
+    if (connectionMode === 'supabase') {
+      const baseUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : '<your-project-url>'
+      const cleanPath = postgrestPath.startsWith('/rest/v1') ? postgrestPath : `/rest/v1${postgrestPath}`
+      fullUrl = `${baseUrl}${cleanPath}`
+
+      const anonKeyDisplay = supabaseAnonKey || '<your-api-key>'
+      allHeaders['apikey'] = anonKeyDisplay
+      allHeaders['Authorization'] = `Bearer ${anonKeyDisplay}`
+    } else {
+      const baseUrl = postgrestEndpointUrl ? postgrestEndpointUrl.replace(/\/$/, '') : '<your-postgrest-url>'
+      fullUrl = `${baseUrl}${postgrestPath}`
     }
 
     // Add custom headers
     if (postgrestHeaders && typeof postgrestHeaders === 'object') {
       Object.entries(postgrestHeaders).forEach(([key, value]) => {
-        if (!['apikey', 'authorization', 'content-type'].includes(key.toLowerCase())) {
+        if (!['content-type'].includes(key.toLowerCase())) {
+          // In supabase mode, don't let custom headers override auth headers
+          if (connectionMode === 'supabase' && ['apikey', 'authorization'].includes(key.toLowerCase())) {
+            return
+          }
           allHeaders[key] = value
         }
       })
@@ -539,7 +570,7 @@ export function Terminal() {
       default:
         return ''
     }
-  }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, supabaseUrl, supabaseAnonKey])
+  }, [postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, connectionMode, supabaseUrl, supabaseAnonKey, postgrestEndpointUrl])
 
   const toggleOutputPanel = useCallback(() => {
     const panel = isMobile ? outputPanelMobileRef.current : outputPanelRef.current
@@ -725,7 +756,10 @@ export function Terminal() {
                   data={outputData}
                   error={executionError}
                   hasCredentials={hasCredentials}
-                  onSetCredentials={handleSetCredentials}
+                  connectionMode={connectionMode}
+                  onSetConnectionMode={handleSetConnectionMode}
+                  onSetSupabaseCredentials={handleSetSupabaseCredentials}
+                  onSetPostgrestEndpoint={handleSetPostgrestEndpoint}
                 />
               </div>
             </div>
@@ -887,7 +921,10 @@ export function Terminal() {
                   data={outputData}
                   error={executionError}
                   hasCredentials={hasCredentials}
-                  onSetCredentials={handleSetCredentials}
+                  connectionMode={connectionMode}
+                  onSetConnectionMode={handleSetConnectionMode}
+                  onSetSupabaseCredentials={handleSetSupabaseCredentials}
+                  onSetPostgrestEndpoint={handleSetPostgrestEndpoint}
                 />
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { Loader2, Key, Link, CheckCircle2 } from 'lucide-react'
+import { Loader2, Key, Link, CheckCircle2, Globe } from 'lucide-react'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 import { useState } from 'react'
@@ -10,75 +10,158 @@ interface OutputDisplayProps {
   data: any
   error: string | null
   hasCredentials: boolean
-  onSetCredentials: (url: string, anonKey: string) => void
+  connectionMode: 'supabase' | 'postgrest'
+  onSetConnectionMode: (mode: 'supabase' | 'postgrest') => void
+  onSetSupabaseCredentials: (url: string, anonKey: string) => void
+  onSetPostgrestEndpoint: (url: string) => void
 }
 
-function CredentialsForm({ onSetCredentials }: { onSetCredentials: (url: string, anonKey: string) => void }) {
-  const [url, setUrl] = useState('')
+interface CredentialsFormProps {
+  connectionMode: 'supabase' | 'postgrest'
+  onSetConnectionMode: (mode: 'supabase' | 'postgrest') => void
+  onSetSupabaseCredentials: (url: string, anonKey: string) => void
+  onSetPostgrestEndpoint: (url: string) => void
+}
+
+function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCredentials, onSetPostgrestEndpoint }: CredentialsFormProps) {
+  const [supabaseUrl, setSupabaseUrl] = useState('')
   const [anonKey, setAnonKey] = useState('')
+  const [postgrestUrl, setPostgrestUrl] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (url.trim() && anonKey.trim()) {
-      onSetCredentials(url.trim(), anonKey.trim())
+    if (connectionMode === 'supabase') {
+      if (supabaseUrl.trim() && anonKey.trim()) {
+        onSetSupabaseCredentials(supabaseUrl.trim(), anonKey.trim())
+      }
+    } else {
+      if (postgrestUrl.trim()) {
+        onSetPostgrestEndpoint(postgrestUrl.trim())
+      }
     }
   }
 
-  const isValid = url.trim() !== '' && anonKey.trim() !== ''
+  const isValid = connectionMode === 'supabase'
+    ? supabaseUrl.trim() !== '' && anonKey.trim() !== ''
+    : postgrestUrl.trim() !== ''
 
   return (
     <div className="h-full overflow-auto p-6">
       <div className="w-full max-w-md mx-auto">
+        {/* Mode toggle */}
+        <div className="flex rounded-lg bg-[#1e1e1e] border border-[#3d3d3d] p-0.5 mb-6">
+          <button
+            type="button"
+            onClick={() => onSetConnectionMode('supabase')}
+            className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors ${
+              connectionMode === 'supabase'
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : 'text-gray-500 hover:text-gray-400'
+            }`}
+          >
+            Supabase
+          </button>
+          <button
+            type="button"
+            onClick={() => onSetConnectionMode('postgrest')}
+            className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors ${
+              connectionMode === 'postgrest'
+                ? 'bg-orange-500/20 text-orange-400'
+                : 'text-gray-500 hover:text-gray-400'
+            }`}
+          >
+            PostgREST
+          </button>
+        </div>
+
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 mb-4">
-            <Key className="h-6 w-6 text-emerald-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-200 mb-2">Connect to Supabase</h3>
-          <p className="text-sm text-gray-400">
-            Enter your Supabase project credentials to execute queries
-          </p>
+          {connectionMode === 'supabase' ? (
+            <>
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 mb-4">
+                <Key className="h-6 w-6 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-200 mb-2">Connect to Supabase</h3>
+              <p className="text-sm text-gray-400">
+                Enter your Supabase project credentials to execute queries
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-500/10 mb-4">
+                <Globe className="h-6 w-6 text-orange-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-200 mb-2">Connect to PostgREST</h3>
+              <p className="text-sm text-gray-400">
+                Enter your PostgREST endpoint URL to execute queries
+              </p>
+            </>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
-              <Link className="h-3 w-3" />
-              Project URL
-            </label>
-            <Input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://your-project.supabase.co"
-              className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
-            />
-          </div>
+          {connectionMode === 'supabase' ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+                  <Link className="h-3 w-3" />
+                  Project URL
+                </label>
+                <Input
+                  type="url"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  placeholder="https://your-project.supabase.co"
+                  className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
-              <Key className="h-3 w-3" />
-              Anon / Public Key
-            </label>
-            <Input
-              type="password"
-              value={anonKey}
-              onChange={(e) => setAnonKey(e.target.value)}
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-              className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
-            />
-          </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+                  <Key className="h-3 w-3" />
+                  Anon / Public Key
+                </label>
+                <Input
+                  type="password"
+                  value={anonKey}
+                  onChange={(e) => setAnonKey(e.target.value)}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+                <Globe className="h-3 w-3" />
+                Base URL
+              </label>
+              <Input
+                type="url"
+                value={postgrestUrl}
+                onChange={(e) => setPostgrestUrl(e.target.value)}
+                placeholder="http://localhost:3000"
+                className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+              />
+            </div>
+          )}
 
           <Button
             type="submit"
             disabled={!isValid}
-            className="w-full h-10 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`w-full h-10 text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+              connectionMode === 'supabase'
+                ? 'bg-emerald-600 hover:bg-emerald-500'
+                : 'bg-orange-600 hover:bg-orange-500'
+            }`}
           >
             Connect
           </Button>
         </form>
 
         <p className="text-[10px] text-gray-500 text-center mt-4">
-          Credentials are stored in memory only and never persisted
+          {connectionMode === 'supabase'
+            ? 'Credentials are stored in memory only and never persisted'
+            : 'Add authentication headers via the PostgREST pane\u2019s Headers section'}
         </p>
       </div>
     </div>
@@ -94,10 +177,17 @@ function ConnectedBadge() {
   )
 }
 
-export function OutputDisplay({ isExecuting, data, error, hasCredentials, onSetCredentials }: OutputDisplayProps) {
+export function OutputDisplay({ isExecuting, data, error, hasCredentials, connectionMode, onSetConnectionMode, onSetSupabaseCredentials, onSetPostgrestEndpoint }: OutputDisplayProps) {
   // Show credentials form if not connected
   if (!hasCredentials) {
-    return <CredentialsForm onSetCredentials={onSetCredentials} />
+    return (
+      <CredentialsForm
+        connectionMode={connectionMode}
+        onSetConnectionMode={onSetConnectionMode}
+        onSetSupabaseCredentials={onSetSupabaseCredentials}
+        onSetPostgrestEndpoint={onSetPostgrestEndpoint}
+      />
+    )
   }
 
   // Loading state

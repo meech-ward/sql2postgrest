@@ -8,35 +8,43 @@ export interface ExecutionResult {
   error: string | null
 }
 
-export interface SupabaseCredentials {
-  url: string
-  anonKey: string
-}
+export type ConnectionCredentials =
+  | { mode: 'supabase'; url: string; anonKey: string }
+  | { mode: 'postgrest'; url: string }
 
 /**
- * Execute a PostgREST request against Supabase
+ * Execute a PostgREST request
  */
 export async function executePostgrestRequest(
   method: string,
   path: string,
   body: string,
   headers: Record<string, string>,
-  credentials: SupabaseCredentials
+  credentials: ConnectionCredentials
 ): Promise<ExecutionResult> {
   const startTime = performance.now()
 
   try {
-    // Build full URL - handle path that may or may not include /rest/v1
-    const baseUrl = credentials.url.replace(/\/$/, '') // Remove trailing slash
-    const cleanPath = path.startsWith('/rest/v1') ? path : `/rest/v1${path}`
-    const restUrl = `${baseUrl}${cleanPath}`
+    const baseUrl = credentials.url.replace(/\/$/, '')
 
-    // Merge headers: PostgREST headers + auth headers
-    const requestHeaders: Record<string, string> = {
-      ...headers,
-      apikey: credentials.anonKey,
-      Authorization: `Bearer ${credentials.anonKey}`,
-      'Content-Type': 'application/json',
+    let restUrl: string
+    let requestHeaders: Record<string, string>
+
+    if (credentials.mode === 'supabase') {
+      const cleanPath = path.startsWith('/rest/v1') ? path : `/rest/v1${path}`
+      restUrl = `${baseUrl}${cleanPath}`
+      requestHeaders = {
+        ...headers,
+        apikey: credentials.anonKey,
+        Authorization: `Bearer ${credentials.anonKey}`,
+        'Content-Type': 'application/json',
+      }
+    } else {
+      restUrl = `${baseUrl}${path}`
+      requestHeaders = {
+        ...headers,
+        'Content-Type': 'application/json',
+      }
     }
 
     // Log the complete request
@@ -44,11 +52,12 @@ export async function executePostgrestRequest(
     console.group('🚀 PostgREST Request')
     console.log('Method:', method)
     console.log('URL:', restUrl)
-    console.log('Headers:', {
-      ...requestHeaders,
-      apikey: '[REDACTED]',
-      Authorization: '[REDACTED]',
-    })
+    const logHeaders = { ...requestHeaders }
+    if (credentials.mode === 'supabase') {
+      logHeaders.apikey = '[REDACTED]'
+      logHeaders.Authorization = '[REDACTED]'
+    }
+    console.log('Headers:', logHeaders)
     if (requestBody) {
       console.log('Body:', requestBody)
       try {

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 
 export function PostgrestPane() {
-  const { postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, syncInProgress } = useStore(terminalStore)
+  const { postgrestMethod, postgrestPath, postgrestBody, postgrestHeaders, syncInProgress, connectionMode } = useStore(terminalStore)
   const [newHeaderKey, setNewHeaderKey] = useState('')
   const [newHeaderValue, setNewHeaderValue] = useState('')
   const [showHeaders, setShowHeaders] = useState(false)
@@ -86,7 +86,7 @@ export function PostgrestPane() {
           value={postgrestPath}
           onChange={handlePathChange}
           className="flex-1 h-7 text-xs px-2 font-mono bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600"
-          placeholder="/rest/v1/table_name?select=*"
+          placeholder={connectionMode === 'supabase' ? '/rest/v1/table_name?select=*' : '/table_name?select=*'}
         />
       </div>
 

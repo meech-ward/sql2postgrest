@@ -23,9 +23,13 @@ interface TerminalState {
   sqlError: string | null
   jsError: string | null
   postgrestError: string | null
+  // Connection Mode
+  connectionMode: 'supabase' | 'postgrest'
   // Supabase Credentials (stored in memory only)
   supabaseUrl: string
   supabaseAnonKey: string
+  // Generic PostgREST Endpoint
+  postgrestEndpointUrl: string
   // Query Execution State
   isExecuting: boolean
   outputData: any
@@ -106,9 +110,13 @@ const initialState: TerminalState = {
   sqlError: null,
   jsError: null,
   postgrestError: null,
+  // Connection Mode
+  connectionMode: 'supabase',
   // Supabase Credentials (not persisted - memory only)
   supabaseUrl: '',
   supabaseAnonKey: '',
+  // Generic PostgREST Endpoint
+  postgrestEndpointUrl: '',
   // Query Execution State
   isExecuting: false,
   outputData: null,
@@ -243,6 +251,10 @@ export const setHasInitialSyncCompleted = (hasCompleted: boolean) => {
   terminalStore.setState((state) => ({ ...state, hasInitialSyncCompleted: hasCompleted }))
 }
 
+export const setConnectionMode = (mode: 'supabase' | 'postgrest') => {
+  terminalStore.setState((state) => ({ ...state, connectionMode: mode }))
+}
+
 export const setSupabaseCredentials = (url: string, anonKey: string) => {
   terminalStore.setState((state) => ({
     ...state,
@@ -251,15 +263,23 @@ export const setSupabaseCredentials = (url: string, anonKey: string) => {
   }))
 }
 
-export const clearSupabaseCredentials = () => {
+export const setPostgrestEndpointUrl = (url: string) => {
+  terminalStore.setState((state) => ({ ...state, postgrestEndpointUrl: url }))
+}
+
+export const clearCredentials = () => {
   terminalStore.setState((state) => ({
     ...state,
     supabaseUrl: '',
     supabaseAnonKey: '',
+    postgrestEndpointUrl: '',
   }))
 }
 
 export const hasValidCredentials = () => {
   const state = terminalStore.state
-  return state.supabaseUrl.trim() !== '' && state.supabaseAnonKey.trim() !== ''
+  if (state.connectionMode === 'supabase') {
+    return state.supabaseUrl.trim() !== '' && state.supabaseAnonKey.trim() !== ''
+  }
+  return state.postgrestEndpointUrl.trim() !== ''
 }
