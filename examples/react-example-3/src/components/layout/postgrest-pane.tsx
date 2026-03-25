@@ -60,7 +60,6 @@ export function PostgrestPane() {
 
   const allHeaders = { ...postgrestHeaders, ...customHeaders }
   const headerCount = Object.keys(allHeaders).length
-  const customHeaderCount = Object.keys(customHeaders).length
 
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e] text-white">
