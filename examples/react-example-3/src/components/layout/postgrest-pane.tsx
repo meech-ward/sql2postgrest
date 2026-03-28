@@ -102,31 +102,26 @@ export function PostgrestPane() {
 
         {showHeaders && (
           <div className="px-2 pb-2 space-y-1.5">
-            {/* Conversion-generated headers (read-only) */}
-            {Object.entries(postgrestHeaders).map(([key, value]) => (
-              <div key={`conv-${key}`} className="flex items-center gap-2 text-[10px] font-mono">
-                <span className="text-gray-500 min-w-[80px]">{key}</span>
-                <span className="text-gray-600">:</span>
-                <span className="text-gray-500 flex-1 truncate">{value}</span>
-                <span className="text-[8px] text-gray-600 italic">auto</span>
-              </div>
-            ))}
-            {/* Custom headers (user-managed) */}
-            {Object.entries(customHeaders).map(([key, value]) => (
-              <div key={`custom-${key}`} className="flex items-center gap-2 text-[10px] font-mono group">
-                <span className="text-blue-400 min-w-[80px]">{key}</span>
-                <span className="text-gray-500">:</span>
-                <span className="text-gray-300 flex-1 truncate">{value}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-opacity"
-                  onClick={() => handleRemoveHeader(key)}
-                >
-                  <X className="h-2.5 w-2.5" />
-                </Button>
-              </div>
-            ))}
+            {/* All headers (merged: auto + custom, custom wins) */}
+            {Object.entries(allHeaders).map(([key, value]) => {
+              const isCustom = key in customHeaders
+              return (
+                <div key={key} className="flex items-center gap-2 text-[10px] font-mono group">
+                  <span className={`min-w-[80px] ${isCustom ? 'text-blue-400' : 'text-gray-400'}`}>{key}</span>
+                  <span className="text-gray-500">:</span>
+                  <span className={`flex-1 truncate ${isCustom ? 'text-gray-300' : 'text-gray-400'}`}>{value}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-opacity"
+                    onClick={() => handleRemoveHeader(key)}
+                    title={isCustom ? 'Remove override' : 'Remove header'}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </Button>
+                </div>
+              )
+            })}
 
             {/* Add New Header */}
             <div className="flex items-center gap-1.5 pt-1">
