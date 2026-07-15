@@ -25,6 +25,12 @@ func main() {
 	// Chained converter: Supabase JS → PostgREST → SQL
 	js.Global().Set("supabase2sql", js.FuncOf(convertSupabaseToSQL))
 
+	// Reverse Supabase converter: PostgREST → Supabase JS
+	js.Global().Set("postgrest2supabase", js.FuncOf(convertPostgRESTToSupabase))
+
+	// Chained converter: SQL → PostgREST → Supabase JS
+	js.Global().Set("sql2supabase", js.FuncOf(convertSQLToSupabase))
+
 	println("sql2postgrest WASM loaded (with reverse, Supabase, and chained converters)")
 	<-c
 }
@@ -340,5 +346,101 @@ func convertSupabaseToSQL(this js.Value, args []js.Value) interface{} {
 		}
 	}
 
+	return response
+}
+
+// convertPostgRESTToSupabase converts a PostgREST request object to supabase-js.
+// Expected input: { method, path, query, body, headers }
+func convertPostgRESTToSupabase(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{"error": "PostgREST request object required as first argument"}
+	}
+	input := args[0]
+
+	method := "GET"
+	if !input.Get("method").IsUndefined() && !input.Get("method").IsNull() {
+		method = input.Get("method").String()
+	}
+	path := ""
+	if !input.Get("path").IsUndefined() && !input.Get("path").IsNull() {
+		path = input.Get("path").String()
+	}
+	query := ""
+	if !input.Get("query").IsUndefined() && !input.Get("query").IsNull() {
+		query = input.Get("query").String()
+	}
+	body := ""
+	if !input.Get("body").IsUndefined() && !input.Get("body").IsNull() {
+		body = input.Get("body").String()
+	}
+
+	headers := make(map[string]string)
+	if !input.Get("headers").IsUndefined() && !input.Get("headers").IsNull() {
+		headersObj := input.Get("headers")
+		keys := js.Global().Get("Object").Call("keys", headersObj)
+		for i := 0; i < keys.Length(); i++ {
+			key := keys.Index(i).String()
+			headers[key] = headersObj.Get(key).String()
+		}
+	}
+
+	if path == "" {
+		return map[string]interface{}{"error": "path is required (e.g., '/users')"}
+	}
+
+	result, err := reverse.ConvertToSupabaseJS(method, path, query, body, headers)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error()}
+	}
+	return supabaseJSResponse(result)
+}
+
+// convertSQLToSupabase chains SQL → PostgREST → supabase-js.
+func convertSQLToSupabase(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{"error": "SQL query required as first argument"}
+	}
+	sql := args[0].String()
+
+	baseURL := "http://localhost:3000"
+	if len(args) >= 2 && !args[1].IsNull() && !args[1].IsUndefined() {
+		baseURL = args[1].String()
+	}
+
+	conv := converter.NewConverter(baseURL)
+	res, err := conv.Convert(sql)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error()}
+	}
+
+	result, err := reverse.ConvertToSupabaseJS(res.Method, res.Path, res.QueryParams.Encode(), res.Body, res.Headers)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error()}
+	}
+
+	response := supabaseJSResponse(result)
+	intermediate := map[string]interface{}{
+		"method": res.Method,
+		"path":   res.Path,
+	}
+	if q := res.QueryParams.Encode(); q != "" {
+		intermediate["query"] = q
+	}
+	if res.Body != "" {
+		intermediate["body"] = res.Body
+	}
+	response["intermediate_postgrest"] = intermediate
+	return response
+}
+
+func supabaseJSResponse(result *reverse.SupabaseJSResult) map[string]interface{} {
+	response := map[string]interface{}{"code": result.Code}
+	if len(result.Warnings) > 0 {
+		warnings := make([]interface{}, len(result.Warnings))
+		for i, w := range result.Warnings {
+			warnings[i] = w
+		}
+		response["warnings"] = warnings
+	}
 	return response
 }
