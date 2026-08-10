@@ -50,7 +50,7 @@ func TestSelectBasic(t *testing.T) {
 			name:       "select with alias",
 			sql:        "SELECT id, name AS full_name FROM users",
 			wantPath:   "/users",
-			wantParams: map[string]string{"select": "id,name:full_name"},
+			wantParams: map[string]string{"select": "id,full_name:name"},
 			wantMethod: "GET",
 		},
 		{
@@ -171,37 +171,37 @@ func TestSelectAggregateFunctions(t *testing.T) {
 		{
 			name:       "count all",
 			sql:        "SELECT COUNT(*) FROM users",
-			wantSelect: "count",
+			wantSelect: "count()",
 		},
 		{
 			name:       "count column",
 			sql:        "SELECT COUNT(id) FROM users",
-			wantSelect: "id.count",
+			wantSelect: "id.count()",
 		},
 		{
 			name:       "sum",
 			sql:        "SELECT SUM(amount) FROM orders",
-			wantSelect: "amount.sum",
+			wantSelect: "amount.sum()",
 		},
 		{
 			name:       "avg",
 			sql:        "SELECT AVG(age) FROM users",
-			wantSelect: "age.avg",
+			wantSelect: "age.avg()",
 		},
 		{
 			name:       "max",
 			sql:        "SELECT MAX(price) FROM products",
-			wantSelect: "price.max",
+			wantSelect: "price.max()",
 		},
 		{
 			name:       "min",
 			sql:        "SELECT MIN(price) FROM products",
-			wantSelect: "price.min",
+			wantSelect: "price.min()",
 		},
 		{
 			name:       "aggregate with alias",
 			sql:        "SELECT COUNT(*) AS total FROM users",
-			wantSelect: "count:total",
+			wantSelect: "total:count()",
 		},
 	}
 
@@ -767,7 +767,7 @@ func TestJoins(t *testing.T) {
 			name:       "JOIN with column aliases",
 			sql:        "SELECT a.name AS author_name, b.title AS book_title FROM authors a JOIN books b ON b.author_id = a.id",
 			wantPath:   "/authors",
-			wantSelect: "name:author_name,books(title:book_title)",
+			wantSelect: "author_name:name,books(book_title:title)",
 		},
 		{
 			name:       "JOIN with ORDER BY",
@@ -1041,10 +1041,10 @@ func TestJoinComplexScenarios(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "/orders", result.Path)
 		selectStr := result.QueryParams.Get("select")
-		assert.Contains(t, selectStr, "id:order_id")
-		assert.Contains(t, selectStr, "customers(name:customer_name)")
-		assert.Contains(t, selectStr, "order_items(quantity:item_qty)")
-		assert.Contains(t, selectStr, "products(name:product_name)")
+		assert.Contains(t, selectStr, "order_id:id")
+		assert.Contains(t, selectStr, "customers(customer_name:name)")
+		assert.Contains(t, selectStr, "order_items(item_qty:quantity)")
+		assert.Contains(t, selectStr, "products(product_name:name)")
 		assert.Equal(t, "eq.shipped", result.QueryParams.Get("status"))
 		assert.Equal(t, "created_at.desc", result.QueryParams.Get("order"))
 		assert.Equal(t, "50", result.QueryParams.Get("limit"))

@@ -153,6 +153,15 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 
 	baseColumns := []string{}
 	embeds := make(map[string]*embedInfo)
+	embedOrder := []string{}
+
+	addEmbedColumn := func(tableName, column string) {
+		if embeds[tableName] == nil {
+			embeds[tableName] = &embedInfo{columns: []string{}}
+			embedOrder = append(embedOrder, tableName)
+		}
+		embeds[tableName].columns = append(embeds[tableName].columns, column)
+	}
 
 	for _, item := range targetList.Items {
 		resTarget, ok := item.(*ast.ResTarget)
@@ -181,30 +190,27 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 				if joinInfo, exists := joins[tableAlias]; exists {
 					if joinInfo.isBase {
 						if resTarget.Name != "" {
-							baseColumns = append(baseColumns, column+":"+resTarget.Name)
+							baseColumns = append(baseColumns, resTarget.Name+":"+column)
 						} else {
 							baseColumns = append(baseColumns, column)
 						}
 					} else {
-						if embeds[joinInfo.tableName] == nil {
-							embeds[joinInfo.tableName] = &embedInfo{columns: []string{}}
-						}
 						if resTarget.Name != "" {
-							embeds[joinInfo.tableName].columns = append(embeds[joinInfo.tableName].columns, column+":"+resTarget.Name)
+							addEmbedColumn(joinInfo.tableName, resTarget.Name+":"+column)
 						} else {
-							embeds[joinInfo.tableName].columns = append(embeds[joinInfo.tableName].columns, column)
+							addEmbedColumn(joinInfo.tableName, column)
 						}
 					}
 				} else {
 					if resTarget.Name != "" {
-						baseColumns = append(baseColumns, column+":"+resTarget.Name)
+						baseColumns = append(baseColumns, resTarget.Name+":"+column)
 					} else {
 						baseColumns = append(baseColumns, column)
 					}
 				}
 			} else {
 				if resTarget.Name != "" {
-					baseColumns = append(baseColumns, colName+":"+resTarget.Name)
+					baseColumns = append(baseColumns, resTarget.Name+":"+colName)
 				} else {
 					baseColumns = append(baseColumns, colName)
 				}
@@ -222,10 +228,7 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 			if tableName == "" {
 				baseColumns = append(baseColumns, funcStr)
 			} else {
-				if embeds[tableName] == nil {
-					embeds[tableName] = &embedInfo{columns: []string{}}
-				}
-				embeds[tableName].columns = append(embeds[tableName].columns, funcStr)
+				addEmbedColumn(tableName, funcStr)
 			}
 
 		case *ast.TypeCast:
@@ -234,6 +237,15 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 				return "", err
 			}
 			baseColumns = append(baseColumns, castStr)
+
+		case *ast.A_Expr:
+			// JSON path (data->>'key'); convertJSONPath strips any table
+			// qualifier, so it lands as a base-table column like the cast case.
+			exprStr, err := c.convertAExpr(val, resTarget.Name)
+			if err != nil {
+				return "", err
+			}
+			baseColumns = append(baseColumns, exprStr)
 
 		default:
 			return "", fmt.Errorf("unsupported SELECT expression type in JOIN: %T", val)
@@ -245,7 +257,9 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 		selectParts = append(selectParts, strings.Join(baseColumns, ","))
 	}
 
-	for tableName, embed := range embeds {
+	// Emit embeds in first-reference order so output is deterministic.
+	for _, tableName := range embedOrder {
+		embed := embeds[tableName]
 		embedStr := tableName + "(" + strings.Join(embed.columns, ",") + ")"
 		selectParts = append(selectParts, embedStr)
 	}
@@ -253,10 +267,12 @@ func (c *Converter) buildEmbeddedSelect(targetList *ast.NodeList, joins map[stri
 	return strings.Join(selectParts, ","), nil
 }
 
+// stripTablePrefix returns the bare column name from a possibly-qualified
+// reference (table.col or schema.table.col). JSON paths use -> / ->> operators
+// rather than dots, so they are unaffected.
 func (c *Converter) stripTablePrefix(colName string) string {
-	parts := strings.Split(colName, ".")
-	if len(parts) == 2 {
-		return parts[1]
+	if idx := strings.LastIndex(colName, "."); idx >= 0 {
+		return colName[idx+1:]
 	}
 	return colName
 }
@@ -273,19 +289,15 @@ func (c *Converter) convertFunctionCallForJoin(fn *ast.FuncCall, alias string, j
 
 	funcName := strings.ToLower(funcNameNode.SVal)
 
-	supportedAggregates := map[string]bool{
-		"count": true,
-		"sum":   true,
-		"avg":   true,
-		"max":   true,
-		"min":   true,
-	}
-
 	if !supportedAggregates[funcName] {
 		if funcName == "json_agg" || funcName == "json_build_object" {
 			return "", "", fmt.Errorf("json_agg/json_build_object not supported - PostgREST handles JSON automatically via embedded resources. Use: GET /authors?select=name,books(title,published_date) instead")
 		}
 		return "", "", fmt.Errorf("unsupported aggregate function in JOIN: %s (only count, sum, avg, max, min are supported)", funcName)
+	}
+
+	if err := c.rejectUnsupportedAggregateModifiers(fn, funcName); err != nil {
+		return "", "", err
 	}
 
 	var result string
@@ -351,7 +363,7 @@ func (c *Converter) convertFunctionCallForJoin(fn *ast.FuncCall, alias string, j
 	}
 
 	if alias != "" {
-		result = result + ":" + alias
+		result = alias + ":" + result
 	}
 
 	return targetTable, result, nil
@@ -382,7 +394,7 @@ func (c *Converter) convertTypeCastForJoin(tc *ast.TypeCast, alias string, joins
 	result := colName + "::" + typeName
 
 	if alias != "" {
-		result = result + ":" + alias
+		result = alias + ":" + result
 	}
 
 	return result, nil

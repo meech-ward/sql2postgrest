@@ -80,8 +80,12 @@ func (c *Converter) convertSelect(stmt *ast.SelectStmt) (*ConversionResult, erro
 		// or use GROUP BY for actual server-side distinct values
 	}
 
-	if stmt.GroupClause != nil && len(joins) == 0 {
-		return nil, fmt.Errorf("GROUP BY not supported for simple queries (use aggregate functions with JOINs or PostgREST's native aggregation)")
+	if stmt.GroupClause != nil {
+		if err := c.validateGroupBy(stmt, joins); err != nil {
+			return nil, err
+		}
+	} else if err := c.validateAggregateOrderBy(stmt, joins); err != nil {
+		return nil, err
 	}
 
 	if stmt.HavingClause != nil {
@@ -136,13 +140,16 @@ func (c *Converter) addSelectColumns(result *ConversionResult, targetList *ast.N
 
 		switch val := resTarget.Val.(type) {
 		case *ast.ColumnRef:
-			colName := c.extractColumnName(val)
+			// No-join path: any qualifier is the single base table, which
+			// PostgREST does not accept in select=, so strip it. A qualified
+			// star (users.*) also collapses to *.
+			colName := c.stripTablePrefix(c.extractColumnName(val))
 			if colName == "*" {
 				continue
 			}
 
 			if resTarget.Name != "" {
-				columns = append(columns, colName+":"+resTarget.Name)
+				columns = append(columns, resTarget.Name+":"+colName)
 			} else {
 				columns = append(columns, colName)
 			}
@@ -213,36 +220,45 @@ func (c *Converter) convertFunctionCall(fn *ast.FuncCall, alias string) (string,
 
 	funcName := strings.ToLower(funcNameNode.SVal)
 
+	if err := c.rejectUnsupportedAggregateModifiers(fn, funcName); err != nil {
+		return "", err
+	}
+
 	var args []string
 	if fn.Args != nil {
 		for _, arg := range fn.Args.Items {
-			if colRef, ok := arg.(*ast.ColumnRef); ok {
-				args = append(args, c.extractColumnName(colRef))
-			} else {
-				return "", fmt.Errorf("unsupported function argument type: %T", arg)
+			target, err := c.aggregateArgTarget(arg)
+			if err != nil {
+				return "", err
 			}
+			args = append(args, target)
 		}
 	}
 
+	// PostgREST aggregate syntax requires parentheses (count(), col.sum());
+	// bare "count" is only a deprecated legacy quirk and "col.sum" is invalid.
 	var result string
 	switch funcName {
 	case "count":
-		if len(args) == 0 || (len(args) == 1 && args[0] == "*") {
-			result = "count"
+		if len(args) > 1 {
+			return "", fmt.Errorf("COUNT accepts at most one argument")
+		}
+		if len(args) == 0 || args[0] == "*" {
+			result = "count()"
 		} else {
-			result = args[0] + ".count"
+			result = args[0] + ".count()"
 		}
 	case "sum", "avg", "max", "min":
 		if len(args) != 1 {
 			return "", fmt.Errorf("%s requires exactly one argument", funcName)
 		}
-		result = args[0] + "." + funcName
+		result = args[0] + "." + funcName + "()"
 	default:
 		return "", fmt.Errorf("unsupported function: %s", funcName)
 	}
 
 	if alias != "" {
-		result = result + ":" + alias
+		result = alias + ":" + result
 	}
 
 	return result, nil
@@ -331,12 +347,29 @@ func (c *Converter) convertTypeCast(tc *ast.TypeCast, alias string) (string, err
 		return "", fmt.Errorf("typecast has no argument")
 	}
 
+	// Casting an aggregate result: AVG(amount)::int -> amount.avg()::int.
+	if fn, ok := tc.Arg.(*ast.FuncCall); ok {
+		funcStr, err := c.convertFunctionCall(fn, "")
+		if err != nil {
+			return "", err
+		}
+		typeName, err := c.extractTypeName(tc.TypeName)
+		if err != nil {
+			return "", err
+		}
+		result := funcStr + "::" + typeName
+		if alias != "" {
+			result = alias + ":" + result
+		}
+		return result, nil
+	}
+
 	colRef, ok := tc.Arg.(*ast.ColumnRef)
 	if !ok {
 		return "", fmt.Errorf("unsupported typecast argument type: %T", tc.Arg)
 	}
 
-	colName := c.extractColumnName(colRef)
+	colName := c.stripTablePrefix(c.extractColumnName(colRef))
 
 	typeName, err := c.extractTypeName(tc.TypeName)
 	if err != nil {
@@ -346,7 +379,7 @@ func (c *Converter) convertTypeCast(tc *ast.TypeCast, alias string) (string, err
 	result := colName + "::" + typeName
 
 	if alias != "" {
-		result = result + ":" + alias
+		result = alias + ":" + result
 	}
 
 	return result, nil
@@ -405,7 +438,7 @@ func (c *Converter) convertJSONPath(expr *ast.A_Expr, alias string) (string, err
 	var leftPart string
 	switch left := expr.Lexpr.(type) {
 	case *ast.ColumnRef:
-		leftPart = c.extractColumnName(left)
+		leftPart = c.stripTablePrefix(c.extractColumnName(left))
 	case *ast.A_Expr:
 		nestedPath, err := c.convertJSONPath(left, "")
 		if err != nil {
@@ -420,20 +453,38 @@ func (c *Converter) convertJSONPath(expr *ast.A_Expr, alias string) (string, err
 		return "", fmt.Errorf("JSON path expression has no right operand")
 	}
 
-	aConst, ok := expr.Rexpr.(*ast.A_Const)
-	if !ok {
+	// The key may carry an inline cast: data->>'amount'::numeric, where Rexpr
+	// is a TypeCast wrapping the key constant. Emit "key::type" in that case.
+	var keyPart string
+	switch r := expr.Rexpr.(type) {
+	case *ast.A_Const:
+		strVal, ok := r.Val.(*ast.String)
+		if !ok {
+			return "", fmt.Errorf("JSON path key must be a string, got: %T", r.Val)
+		}
+		keyPart = strVal.SVal
+	case *ast.TypeCast:
+		aConst, ok := r.Arg.(*ast.A_Const)
+		if !ok {
+			return "", fmt.Errorf("unsupported JSON path cast argument type: %T", r.Arg)
+		}
+		strVal, ok := aConst.Val.(*ast.String)
+		if !ok {
+			return "", fmt.Errorf("JSON path key must be a string, got: %T", aConst.Val)
+		}
+		typeName, err := c.extractTypeName(r.TypeName)
+		if err != nil {
+			return "", err
+		}
+		keyPart = strVal.SVal + "::" + typeName
+	default:
 		return "", fmt.Errorf("unsupported JSON path right expression type: %T", expr.Rexpr)
 	}
 
-	strVal, ok := aConst.Val.(*ast.String)
-	if !ok {
-		return "", fmt.Errorf("JSON path key must be a string, got: %T", aConst.Val)
-	}
-
-	result := leftPart + operator + strVal.SVal
+	result := leftPart + operator + keyPart
 
 	if alias != "" {
-		result = result + ":" + alias
+		result = alias + ":" + result
 	}
 
 	return result, nil

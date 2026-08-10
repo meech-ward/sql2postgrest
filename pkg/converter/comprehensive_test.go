@@ -55,7 +55,7 @@ func TestComprehensiveSELECT(t *testing.T) {
 			wantMethod: "GET",
 			wantPath:   "/users",
 			checkFunc: func(t *testing.T, r *ConversionResult) {
-				assert.Equal(t, "id,email:user_email,created_at:registration_date", r.QueryParams.Get("select"))
+				assert.Equal(t, "id,user_email:email,registration_date:created_at", r.QueryParams.Get("select"))
 			},
 		},
 		{
@@ -494,9 +494,9 @@ func TestErrorCases(t *testing.T) {
 			wantErrText: "DELETE without WHERE",
 		},
 		{
-			name:        "GROUP BY without JOIN",
-			sql:         "SELECT status, COUNT(*) FROM orders GROUP BY status",
-			wantErrText: "GROUP BY not supported",
+			name:        "GROUP BY ROLLUP",
+			sql:         "SELECT status, COUNT(*) FROM orders GROUP BY ROLLUP(status)",
+			wantErrText: "ROLLUP/CUBE",
 		},
 	}
 
