@@ -47,10 +47,17 @@ go build -o sql2postgrest ./cmd/sql2postgrest
 ./sql2postgrest "SELECT a.name, b.title FROM authors a JOIN books b ON b.author_id = a.id"
 → GET /authors?select=name,books(title)
 
-# Aggregates
+# Aggregates with GROUP BY (uses PostgREST native aggregation)
+./sql2postgrest "SELECT status, COUNT(*) AS total FROM users GROUP BY status"
+→ GET /users?select=status,total:count()
+
+# Aggregates with JOINs (embedded resources)
 ./sql2postgrest "SELECT a.name, COUNT(b.id) AS book_count FROM authors a LEFT JOIN books b ON b.author_id = a.id GROUP BY a.id"
-→ GET /authors?select=name,books(id.count():book_count)
+→ GET /authors?select=name,books(book_count:id.count())
 ```
+
+> **Note**: Aggregate queries require PostgREST >= 12 with `db-aggregates-enabled = true`
+> (`PGRST_DB_AGGREGATES_ENABLED`). Otherwise PostgREST returns HTTP 400 with code `PGRST123`.
 
 ## Supported SQL Features
 
@@ -78,10 +85,13 @@ go build -o sql2postgrest ./cmd/sql2postgrest
 - **JSON paths**: `SELECT data->>'name', data->'address'->>'city'`
 - **JOINs**: LEFT/INNER/RIGHT (converted to embedded resources)
 - **Aggregates**: COUNT, SUM, AVG, MIN, MAX (with/without JOINs)
+- **GROUP BY**: Plain columns, ordinals, output aliases, JSON paths (maps to PostgREST implicit grouping; GROUP BY columns must match the non-aggregated SELECT columns)
 - **OR conditions**: `WHERE age < 18 OR age > 65`
 
 ### ❌ Not Supported
 - **CTEs (WITH), Subqueries, Window functions** - No PostgREST equivalent
+- **ROLLUP/CUBE/GROUPING SETS, GROUP BY DISTINCT, GROUP BY expressions** - No PostgREST equivalent
+- **ORDER BY aggregate results** - Not supported by PostgREST
 - **HAVING** - Create a database VIEW instead:
   ```sql
   -- ❌ Can't convert: SELECT author_id, COUNT(*) FROM books GROUP BY author_id HAVING COUNT(*) > 5
