@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import Editor, { type Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { setupSqlAutocomplete } from '@/lib/sql-autocomplete'
+import { useMonacoTheme } from '@/components/theme-provider'
 
 interface SqlEditorProps {
   value: string
@@ -11,6 +12,7 @@ interface SqlEditorProps {
 
 export function SqlEditor({ value, onChange, onRun }: SqlEditorProps) {
   const isSetup = useRef(false)
+  const monacoTheme = useMonacoTheme()
 
   const handleEditorChange = (value: string | undefined) => {
     onChange(value || '')
@@ -51,7 +53,7 @@ export function SqlEditor({ value, onChange, onRun }: SqlEditorProps) {
       onChange={handleEditorChange}
       beforeMount={handleEditorWillMount}
       onMount={handleEditorDidMount}
-      theme="vs-dark"
+      theme={monacoTheme}
       options={{
         minimap: { enabled: false },
         fontSize: 13,

@@ -8,6 +8,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>SQL to PostgREST Converter</title>
+    <script>
+      // Apply the saved/system theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('sql-chat-theme') || 'system'
+          var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.add(dark ? 'dark' : 'light')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

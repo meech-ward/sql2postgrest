@@ -10,9 +10,9 @@ import '@/styles/terminal-theme.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="dark" storageKey="sql-chat-theme">
+    <ThemeProvider defaultTheme="system" storageKey="sql-chat-theme">
       <QueryClientProvider client={queryClient}>
-        <div className="h-screen w-screen overflow-hidden bg-[#1e1e1e]">
+        <div className="h-screen w-screen overflow-hidden bg-background">
           <Terminal />
         </div>
         <Toaster />

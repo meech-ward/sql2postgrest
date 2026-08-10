@@ -12,7 +12,7 @@ export function TerminalLoadingOverlay({
   wasmPostgREST2SQLReady,
 }: TerminalLoadingOverlayProps) {
   return (
-    <div className="absolute inset-0 bg-[#1e1e1e] z-50 flex items-center justify-center">
+    <div className="absolute inset-0 bg-surface z-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-6 max-w-md">
         {/* Spinner */}
         <div className="relative">
@@ -22,10 +22,10 @@ export function TerminalLoadingOverlay({
 
         {/* Status Text */}
         <div className="text-center space-y-2">
-          <h3 className="text-lg font-semibold text-gray-200">
+          <h3 className="text-lg font-semibold text-foreground">
             {status === 'loading-wasm' ? 'Initializing Terminal' : 'Syncing Editors'}
           </h3>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             {status === 'loading-wasm'
               ? 'Loading SQL conversion modules...'
               : 'Converting SQL to JavaScript and PostgREST...'}
@@ -36,7 +36,7 @@ export function TerminalLoadingOverlay({
         {status === 'loading-wasm' && (
           <div className="w-full space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400 font-mono">SQL → PostgREST</span>
+              <span className="text-muted-foreground font-mono">SQL → PostgREST</span>
               {wasmSQL2PostgRESTReady ? (
                 <span className="text-green-400 flex items-center gap-1">
                   <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -56,7 +56,7 @@ export function TerminalLoadingOverlay({
               )}
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400 font-mono">PostgREST → SQL</span>
+              <span className="text-muted-foreground font-mono">PostgREST → SQL</span>
               {wasmPostgREST2SQLReady ? (
                 <span className="text-green-400 flex items-center gap-1">
                   <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -81,7 +81,7 @@ export function TerminalLoadingOverlay({
         {/* Progress bar for syncing */}
         {status === 'syncing-editors' && (
           <div className="w-full">
-            <div className="h-1 w-full bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-1 w-full bg-surface-muted rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse" style={{ width: '100%' }} />
             </div>
           </div>

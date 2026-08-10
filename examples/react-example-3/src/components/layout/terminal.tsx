@@ -76,16 +76,16 @@ function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, b
   }, [onCopy])
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+    <div className="flex flex-col h-full bg-surface overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526] min-w-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-surface-muted bg-surface-raised min-w-0">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
           <div className={`${accentColor} shrink-0`}>
             {icon}
           </div>
-          <span className="text-xs font-medium text-gray-300 shrink-0">{title}</span>
+          <span className="text-xs font-medium text-foreground shrink-0">{title}</span>
           {badge && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3d3d3d] text-gray-400 font-mono hidden sm:inline">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-strong text-foreground font-mono hidden sm:inline">
               {badge}
             </span>
           )}
@@ -97,7 +97,7 @@ function EditorPanel({ title, icon, accentColor, children, onRun, isExecuting, b
             <Button
               size="sm"
               onClick={handleCopy}
-              className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 hover:text-gray-300 border border-gray-500/20 hover:border-gray-500/40 transition-all"
+              className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-muted-foreground hover:bg-gray-500/20 hover:text-foreground border border-gray-500/20 hover:border-gray-500/40 transition-all"
               title="Copy"
             >
               {copied ? (
@@ -167,21 +167,21 @@ function CopyFormatDropdown({ getContent }: CopyFormatDropdownProps) {
       <DropdownMenuTrigger asChild>
         <Button
           size="sm"
-          className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 hover:text-gray-300 border border-gray-500/20 hover:border-gray-500/40 transition-all"
+          className="h-6 text-[10px] px-2 gap-1 bg-gray-500/10 text-muted-foreground hover:bg-gray-500/20 hover:text-foreground border border-gray-500/20 hover:border-gray-500/40 transition-all"
         >
           <Copy className="h-3 w-3" />
           <span className="hidden sm:inline">Copy</span>
           <ChevronDown className="h-2.5 w-2.5 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="bg-[#252526] border-[#3d3d3d] min-w-[140px]">
-        <DropdownMenuLabel className="text-[10px] text-gray-500 font-normal">Copy as...</DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-[#3d3d3d]" />
+      <DropdownMenuContent align="end" className="bg-surface-raised border-surface-strong min-w-[140px]">
+        <DropdownMenuLabel className="text-[10px] text-muted-foreground font-normal">Copy as...</DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-surface-strong" />
         {(Object.keys(formatLabels) as CopyFormat[]).map((format) => (
           <DropdownMenuItem
             key={format}
             onClick={() => handleCopy(format)}
-            className="text-xs text-gray-300 hover:bg-[#3d3d3d] cursor-pointer flex items-center justify-between"
+            className="text-xs text-foreground hover:bg-surface-strong cursor-pointer flex items-center justify-between"
           >
             <span>{formatLabels[format]}</span>
             {copied === format && (
@@ -212,7 +212,7 @@ function ExamplesDropdown({ onSelect, variant = 'sql' }: ExamplesDropdownProps) 
         <Button
           variant="ghost"
           size="sm"
-          className={`h-6 px-2 text-[10px] gap-1 ${variantColors[variant]} hover:bg-white/5`}
+          className={`h-6 px-2 text-[10px] gap-1 ${variantColors[variant]} hover:bg-foreground/5`}
         >
           <ChevronDown className="h-3 w-3" />
           Examples
@@ -220,29 +220,29 @@ function ExamplesDropdown({ onSelect, variant = 'sql' }: ExamplesDropdownProps) 
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-64 max-h-[400px] overflow-y-auto bg-[#252526] border-[#3d3d3d] text-gray-300"
+        className="w-64 max-h-[400px] overflow-y-auto bg-surface-raised border-surface-strong text-foreground"
       >
-        <DropdownMenuLabel className="text-gray-400 text-xs">Query Examples</DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-[#3d3d3d]" />
+        <DropdownMenuLabel className="text-muted-foreground text-xs">Query Examples</DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-surface-strong" />
         {EXAMPLE_CATEGORIES.map((category) => {
           const categoryExamples = QUERY_EXAMPLES.filter(ex => ex.category === category)
           if (categoryExamples.length === 0) return null
 
           return (
             <div key={category}>
-              <div className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 {category}
               </div>
               {categoryExamples.map(example => (
                 <DropdownMenuItem
                   key={example.label}
-                  className="text-xs cursor-pointer focus:bg-white/10 focus:text-white px-2 py-1.5"
+                  className="text-xs cursor-pointer focus:bg-foreground/10 focus:text-foreground px-2 py-1.5"
                   onClick={() => onSelect(example)}
                 >
                   {example.label}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator className="bg-[#3d3d3d]" />
+              <DropdownMenuSeparator className="bg-surface-strong" />
             </div>
           )
         })}
@@ -605,7 +605,7 @@ export function Terminal() {
     : 'syncing-editors'
 
   return (
-    <div className="flex h-full flex-col bg-[#0d0d0d] text-white relative">
+    <div className="flex h-full flex-col bg-surface-sunken text-foreground relative">
       {/* Loading Overlay */}
       {showLoadingOverlay && (
         <TerminalLoadingOverlay
@@ -636,7 +636,7 @@ export function Terminal() {
             </EditorPanel>
           </ResizablePanel>
 
-          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
+          <ResizableHandle className="h-[4px] bg-surface-muted hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
           {/* Supabase JS Editor */}
           <ResizablePanel defaultSize={25} minSize={15}>
@@ -654,7 +654,7 @@ export function Terminal() {
             </EditorPanel>
           </ResizablePanel>
 
-          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
+          <ResizableHandle className="h-[4px] bg-surface-muted hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
           {/* PostgREST Editor */}
           <ResizablePanel defaultSize={25} minSize={15}>
@@ -672,7 +672,7 @@ export function Terminal() {
             </EditorPanel>
           </ResizablePanel>
 
-          <ResizableHandle className="h-[4px] bg-[#2d2d2d] hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
+          <ResizableHandle className="h-[4px] bg-surface-muted hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors touch-none cursor-row-resize" />
 
           {/* Output */}
           <ResizablePanel
@@ -684,14 +684,14 @@ export function Terminal() {
             onCollapse={handleOutputCollapse}
             onExpand={handleOutputExpand}
           >
-            <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+            <div className="flex flex-col h-full bg-surface overflow-hidden">
               {/* Output Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-surface-muted bg-surface-raised">
                 <div className="flex items-center gap-2">
                   <div className="text-purple-400">
                     <TerminalIcon className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-xs font-medium text-gray-300">Output</span>
+                  <span className="text-xs font-medium text-foreground">Output</span>
                   {hasCredentials && (
                     <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2">
                       <CheckCircle2 className="h-3 w-3" />
@@ -723,12 +723,12 @@ export function Terminal() {
                     </div>
                   )}
                   {rowCount !== null && (
-                    <span className="text-gray-500 hidden sm:inline">
+                    <span className="text-muted-foreground hidden sm:inline">
                       {rowCount} {rowCount === 1 ? 'row' : 'rows'}
                     </span>
                   )}
                   {executionTime !== null && (
-                    <span className="text-gray-500 font-mono">
+                    <span className="text-muted-foreground font-mono">
                       {executionTime}ms
                     </span>
                   )}
@@ -736,7 +736,7 @@ export function Terminal() {
                     href="https://github.com/meech-ward/sql2postgrest"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                     title="View on GitHub"
                   >
                     <Github className="h-3.5 w-3.5" />
@@ -745,7 +745,7 @@ export function Terminal() {
                     size="sm"
                     variant="ghost"
                     onClick={toggleOutputPanel}
-                    className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-500/20"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-gray-500/20"
                     title={isOutputCollapsed ? "Expand output" : "Collapse output"}
                   >
                     {isOutputCollapsed ? (
@@ -758,7 +758,7 @@ export function Terminal() {
               </div>
 
               {/* Output Content */}
-              <div className="flex-1 overflow-hidden bg-[#0d0d0d]">
+              <div className="flex-1 overflow-hidden bg-surface-sunken">
                 <OutputDisplay
                   isExecuting={isExecuting}
                   data={outputData}
@@ -798,7 +798,7 @@ export function Terminal() {
                 </EditorPanel>
               </ResizablePanel>
 
-              <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+              <ResizableHandle className="w-[1px] bg-surface-muted hover:bg-blue-500/50 transition-colors" />
 
               {/* Supabase JS Editor */}
               <ResizablePanel defaultSize={34} minSize={20}>
@@ -816,7 +816,7 @@ export function Terminal() {
                 </EditorPanel>
               </ResizablePanel>
 
-              <ResizableHandle className="w-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+              <ResizableHandle className="w-[1px] bg-surface-muted hover:bg-blue-500/50 transition-colors" />
 
               {/* PostgREST Editor */}
               <ResizablePanel defaultSize={33} minSize={20}>
@@ -837,7 +837,7 @@ export function Terminal() {
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          <ResizableHandle className="h-[1px] bg-[#2d2d2d] hover:bg-blue-500/50 transition-colors" />
+          <ResizableHandle className="h-[1px] bg-surface-muted hover:bg-blue-500/50 transition-colors" />
 
           {/* Bottom Section: Output */}
           <ResizablePanel
@@ -849,14 +849,14 @@ export function Terminal() {
             onCollapse={handleOutputCollapse}
             onExpand={handleOutputExpand}
           >
-            <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+            <div className="flex flex-col h-full bg-surface overflow-hidden">
               {/* Output Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-surface-muted bg-surface-raised">
                 <div className="flex items-center gap-2">
                   <div className="text-purple-400">
                     <TerminalIcon className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-xs font-medium text-gray-300">Output</span>
+                  <span className="text-xs font-medium text-foreground">Output</span>
                   {hasCredentials && (
                     <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2">
                       <CheckCircle2 className="h-3 w-3" />
@@ -888,12 +888,12 @@ export function Terminal() {
                     </div>
                   )}
                   {rowCount !== null && (
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {rowCount} {rowCount === 1 ? 'row' : 'rows'}
                     </span>
                   )}
                   {executionTime !== null && (
-                    <span className="text-gray-500 font-mono">
+                    <span className="text-muted-foreground font-mono">
                       {executionTime}ms
                     </span>
                   )}
@@ -901,7 +901,7 @@ export function Terminal() {
                     href="https://github.com/meech-ward/sql2postgrest"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+                    className="h-6 w-6 p-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                     title="View on GitHub"
                   >
                     <Github className="h-3.5 w-3.5" />
@@ -910,7 +910,7 @@ export function Terminal() {
                     size="sm"
                     variant="ghost"
                     onClick={toggleOutputPanel}
-                    className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-500/20"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-gray-500/20"
                     title={isOutputCollapsed ? "Expand output" : "Collapse output"}
                   >
                     {isOutputCollapsed ? (
@@ -923,7 +923,7 @@ export function Terminal() {
               </div>
 
               {/* Output Content */}
-              <div className="flex-1 overflow-hidden bg-[#0d0d0d]">
+              <div className="flex-1 overflow-hidden bg-surface-sunken">
                 <OutputDisplay
                   isExecuting={isExecuting}
                   data={outputData}

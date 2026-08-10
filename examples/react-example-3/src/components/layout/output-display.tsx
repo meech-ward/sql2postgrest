@@ -49,14 +49,14 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
     <div className="h-full overflow-auto p-6">
       <div className="w-full max-w-md mx-auto">
         {/* Mode toggle */}
-        <div className="flex rounded-lg bg-[#1e1e1e] border border-[#3d3d3d] p-0.5 mb-6">
+        <div className="flex rounded-lg bg-surface border border-surface-strong p-0.5 mb-6">
           <button
             type="button"
             onClick={() => onSetConnectionMode('supabase')}
             className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors ${
               connectionMode === 'supabase'
                 ? 'bg-emerald-500/20 text-emerald-400'
-                : 'text-gray-500 hover:text-gray-400'
+                : 'text-muted-foreground hover:text-muted-foreground'
             }`}
           >
             Supabase
@@ -67,7 +67,7 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
             className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors ${
               connectionMode === 'postgrest'
                 ? 'bg-orange-500/20 text-orange-400'
-                : 'text-gray-500 hover:text-gray-400'
+                : 'text-muted-foreground hover:text-muted-foreground'
             }`}
           >
             PostgREST
@@ -80,8 +80,8 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 mb-4">
                 <Key className="h-6 w-6 text-emerald-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-200 mb-2">Connect to Supabase</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Connect to Supabase</h3>
+              <p className="text-sm text-muted-foreground">
                 Enter your Supabase project credentials to execute queries
               </p>
             </>
@@ -90,8 +90,8 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-500/10 mb-4">
                 <Globe className="h-6 w-6 text-orange-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-200 mb-2">Connect to PostgREST</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Connect to PostgREST</h3>
+              <p className="text-sm text-muted-foreground">
                 Enter your PostgREST endpoint URL to execute queries
               </p>
             </>
@@ -102,7 +102,7 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
           {connectionMode === 'supabase' ? (
             <>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                   <Link className="h-3 w-3" />
                   Project URL
                 </label>
@@ -111,12 +111,12 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
                   value={supabaseUrl}
                   onChange={(e) => setSupabaseUrl(e.target.value)}
                   placeholder="https://your-project.supabase.co"
-                  className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+                  className="h-10 bg-surface border-surface-strong text-foreground placeholder:text-muted-foreground font-mono text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                   <Key className="h-3 w-3" />
                   Anon / Public Key
                 </label>
@@ -125,13 +125,13 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
                   value={anonKey}
                   onChange={(e) => setAnonKey(e.target.value)}
                   placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+                  className="h-10 bg-surface border-surface-strong text-foreground placeholder:text-muted-foreground font-mono text-sm"
                 />
               </div>
             </>
           ) : (
             <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-400 flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                 <Globe className="h-3 w-3" />
                 Base URL
               </label>
@@ -140,7 +140,7 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
                 value={postgrestUrl}
                 onChange={(e) => setPostgrestUrl(e.target.value)}
                 placeholder="http://localhost:3000"
-                className="h-10 bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600 font-mono text-sm"
+                className="h-10 bg-surface border-surface-strong text-foreground placeholder:text-muted-foreground font-mono text-sm"
               />
             </div>
           )}
@@ -148,7 +148,7 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
           <Button
             type="submit"
             disabled={!isValid}
-            className={`w-full h-10 text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`w-full h-10 text-foreground disabled:opacity-50 disabled:cursor-not-allowed ${
               connectionMode === 'supabase'
                 ? 'bg-emerald-600 hover:bg-emerald-500'
                 : 'bg-orange-600 hover:bg-orange-500'
@@ -158,7 +158,7 @@ function CredentialsForm({ connectionMode, onSetConnectionMode, onSetSupabaseCre
           </Button>
         </form>
 
-        <p className="text-[10px] text-gray-500 text-center mt-4">
+        <p className="text-[10px] text-muted-foreground text-center mt-4">
           {connectionMode === 'supabase'
             ? 'Credentials are stored in memory only and never persisted'
             : 'Add authentication headers via the PostgREST pane\u2019s Headers section'}
@@ -227,7 +227,7 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
                 </div>
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-red-400 mb-1">Error</h4>
-                  <pre className="text-xs text-red-300/90 font-mono whitespace-pre-wrap">{error}</pre>
+                  <pre className="text-xs text-red-700 dark:text-red-300/90 font-mono whitespace-pre-wrap">{error}</pre>
                 </div>
               </div>
             </div>
@@ -243,7 +243,7 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="text-sm text-muted-foreground mb-2">No query executed</div>
-          <div className="text-xs text-muted-foreground/60">
+          <div className="text-xs text-muted-foreground">
             Click a Run button to execute a query
           </div>
         </div>
@@ -280,7 +280,7 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-yellow-400 mb-1">No rows returned</h4>
-                  <p className="text-xs text-yellow-300/80">The query executed successfully but returned no data.</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300/80">The query executed successfully but returned no data.</p>
                 </div>
               </div>
             </div>
@@ -300,13 +300,13 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
           <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
             <table className="w-full text-xs text-left border-collapse">
               {/* Sticky header */}
-              <thead className="bg-[#252526] sticky top-0 z-10">
+              <thead className="bg-surface-raised sticky top-0 z-10">
                 <tr>
-                  <th className="p-2 font-semibold text-gray-400 border-b border-white/20 text-right w-12 bg-[#252526]">
+                  <th className="p-2 font-semibold text-muted-foreground border-b border-border text-right w-12 bg-surface-raised">
                     #
                   </th>
                   {columns.map((col) => (
-                    <th key={col} className="p-2 font-semibold text-gray-300 border-b border-white/20 whitespace-nowrap bg-[#252526]">
+                    <th key={col} className="p-2 font-semibold text-foreground border-b border-border whitespace-nowrap bg-surface-raised">
                       {col}
                     </th>
                   ))}
@@ -316,10 +316,10 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
                 {data.map((row: any, idx: number) => (
                   <tr
                     key={idx}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                    className="border-b border-border hover:bg-foreground/5 transition-colors"
                   >
                     {/* Row number */}
-                    <td className="p-2 text-gray-500 text-right font-mono text-[10px] border-r border-white/5">
+                    <td className="p-2 text-muted-foreground text-right font-mono text-[10px] border-r border-border">
                       {idx + 1}
                     </td>
                     {columns.map((col) => {
@@ -332,13 +332,13 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
                       return (
                         <td key={col} className="p-2 max-w-md">
                           {isNull ? (
-                            <span className="text-gray-500 italic">null</span>
+                            <span className="text-muted-foreground italic">null</span>
                           ) : isBoolean ? (
                             <span className="text-purple-400 font-mono">{String(value)}</span>
                           ) : isNumber ? (
                             <span className="text-blue-400 font-mono">{value}</span>
                           ) : isString ? (
-                            <span className="text-gray-200 break-words">{value}</span>
+                            <span className="text-foreground break-words">{value}</span>
                           ) : (
                             <span className="text-orange-400 font-mono text-[10px] break-all">
                               {JSON.stringify(value)}
@@ -365,8 +365,8 @@ export function OutputDisplay({ isExecuting, data, error, hasCredentials, connec
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
         <div className="p-4">
-          <div className="rounded-md border border-white/10 bg-white/5 p-4">
-            <pre className="text-xs text-gray-200 font-mono">
+          <div className="rounded-md border border-border bg-foreground/5 p-4">
+            <pre className="text-xs text-foreground font-mono">
               {JSON.stringify(data, null, 2)}
             </pre>
           </div>

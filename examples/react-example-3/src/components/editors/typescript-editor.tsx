@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import Editor, { type Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { setupMonacoTypes } from '@/lib/monaco-setup'
+import { useMonacoTheme } from '@/components/theme-provider'
 
 interface TypeScriptEditorProps {
   value: string
@@ -12,6 +13,7 @@ interface TypeScriptEditorProps {
 export function TypeScriptEditor({ value, onChange, onRun }: TypeScriptEditorProps) {
   const monacoRef = useRef<Monaco | null>(null)
   const isSetup = useRef(false)
+  const monacoTheme = useMonacoTheme()
 
   const handleEditorChange = (value: string | undefined) => {
     onChange(value || '')
@@ -88,7 +90,7 @@ export function TypeScriptEditor({ value, onChange, onRun }: TypeScriptEditorPro
       onChange={handleEditorChange}
       beforeMount={handleEditorWillMount}
       onMount={handleEditorDidMount}
-      theme="vs-dark"
+      theme={monacoTheme}
       options={{
         minimap: { enabled: false },
         fontSize: 13,

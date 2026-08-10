@@ -117,6 +117,14 @@ export function sqlToPostgREST(
       return { success: false, error: 'Conversion failed - no result' }
     }
 
+    // WASM converter returns an error object for unsupported SQL
+    if (result.error) {
+      return {
+        success: false,
+        error: result.error
+      }
+    }
+
     const { path, query } = parseURL(result.url)
     console.log('[Conv] Parsed path:', path, 'query:', query)
 

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Editor from '@monaco-editor/react'
 import { useState } from 'react'
+import { useMonacoTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -12,6 +13,7 @@ export function PostgrestPane() {
   const [newHeaderKey, setNewHeaderKey] = useState('')
   const [newHeaderValue, setNewHeaderValue] = useState('')
   const [showHeaders, setShowHeaders] = useState(false)
+  const monacoTheme = useMonacoTheme()
 
   const handleMethodChange = (val: string) => {
     setPostgrestMethod(val as 'GET' | 'POST' | 'PATCH' | 'DELETE')
@@ -62,14 +64,14 @@ export function PostgrestPane() {
   const headerCount = Object.keys(allHeaders).length
 
   return (
-    <div className="flex h-full flex-col bg-[#1e1e1e] text-white">
+    <div className="flex h-full flex-col bg-surface text-foreground">
       {/* URL Bar */}
-      <div className="flex items-center gap-2 p-2 border-b border-[#2d2d2d] bg-[#252526]">
+      <div className="flex items-center gap-2 p-2 border-b border-surface-muted bg-surface-raised">
         <Select value={postgrestMethod} onValueChange={handleMethodChange}>
           <SelectTrigger className={`w-[90px] h-7 text-[11px] font-semibold px-2 border ${methodColors[postgrestMethod]} bg-transparent`}>
             <SelectValue placeholder="Method" />
           </SelectTrigger>
-          <SelectContent className="bg-[#252526] border-[#3d3d3d]">
+          <SelectContent className="bg-surface-raised border-surface-strong">
             <SelectItem value="GET" className="text-emerald-400 text-xs">GET</SelectItem>
             <SelectItem value="POST" className="text-blue-400 text-xs">POST</SelectItem>
             <SelectItem value="PATCH" className="text-amber-400 text-xs">PATCH</SelectItem>
@@ -80,21 +82,21 @@ export function PostgrestPane() {
         <Input
           value={postgrestPath}
           onChange={handlePathChange}
-          className="flex-1 h-7 text-xs px-2 font-mono bg-[#1e1e1e] border-[#3d3d3d] text-gray-200 placeholder:text-gray-600"
+          className="flex-1 h-7 text-xs px-2 font-mono bg-surface border-surface-strong text-foreground placeholder:text-muted-foreground"
           placeholder={connectionMode === 'supabase' ? '/rest/v1/table_name?select=*' : '/table_name?select=*'}
         />
       </div>
 
       {/* Headers Toggle */}
-      <div className="border-b border-[#2d2d2d]">
+      <div className="border-b border-surface-muted">
         <button
           onClick={() => setShowHeaders(!showHeaders)}
-          className="w-full flex items-center gap-2 px-2 py-1.5 text-[10px] text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a] transition-colors"
+          className="w-full flex items-center gap-2 px-2 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-surface-raised transition-colors"
         >
           {showHeaders ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           <span className="uppercase tracking-wide font-medium">Headers</span>
           {headerCount > 0 && (
-            <span className="ml-auto px-1.5 py-0.5 rounded text-[9px] bg-[#3d3d3d] text-gray-400">
+            <span className="ml-auto px-1.5 py-0.5 rounded text-[9px] bg-surface-strong text-foreground">
               {headerCount}
             </span>
           )}
@@ -107,9 +109,9 @@ export function PostgrestPane() {
               const isCustom = key in customHeaders
               return (
                 <div key={key} className="flex items-center gap-2 text-[10px] font-mono group">
-                  <span className={`min-w-[80px] ${isCustom ? 'text-blue-400' : 'text-gray-400'}`}>{key}</span>
-                  <span className="text-gray-500">:</span>
-                  <span className={`flex-1 truncate ${isCustom ? 'text-gray-300' : 'text-gray-400'}`}>{value}</span>
+                  <span className={`min-w-[80px] ${isCustom ? 'text-blue-400' : 'text-muted-foreground'}`}>{key}</span>
+                  <span className="text-muted-foreground">:</span>
+                  <span className={`flex-1 truncate ${isCustom ? 'text-foreground' : 'text-muted-foreground'}`}>{value}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -129,14 +131,14 @@ export function PostgrestPane() {
                 value={newHeaderKey}
                 onChange={(e) => setNewHeaderKey(e.target.value)}
                 placeholder="Header name"
-                className="h-6 text-[10px] px-2 font-mono bg-[#1e1e1e] border-[#3d3d3d] flex-1 placeholder:text-gray-600"
+                className="h-6 text-[10px] px-2 font-mono bg-surface border-surface-strong flex-1 placeholder:text-muted-foreground"
                 onKeyDown={(e) => e.key === 'Enter' && handleAddHeader()}
               />
               <Input
                 value={newHeaderValue}
                 onChange={(e) => setNewHeaderValue(e.target.value)}
                 placeholder="Value"
-                className="h-6 text-[10px] px-2 font-mono bg-[#1e1e1e] border-[#3d3d3d] flex-1 placeholder:text-gray-600"
+                className="h-6 text-[10px] px-2 font-mono bg-surface border-surface-strong flex-1 placeholder:text-muted-foreground"
                 onKeyDown={(e) => e.key === 'Enter' && handleAddHeader()}
               />
               <Button
@@ -158,7 +160,7 @@ export function PostgrestPane() {
           value={postgrestBody}
           height="100%"
           defaultLanguage="json"
-          theme="vs-dark"
+          theme={monacoTheme}
           onChange={handleBodyChange}
           options={{
             minimap: { enabled: false },
@@ -184,7 +186,7 @@ export function PostgrestPane() {
           }}
         />
         {/* Body label */}
-        <div className="absolute bottom-2 right-2 px-2 py-0.5 text-[9px] text-gray-500 bg-[#1e1e1e]/80 rounded font-mono">
+        <div className="absolute bottom-2 right-2 px-2 py-0.5 text-[9px] text-muted-foreground bg-surface/80 rounded font-mono">
           Request Body
         </div>
       </div>

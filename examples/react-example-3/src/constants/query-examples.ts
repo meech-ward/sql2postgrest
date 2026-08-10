@@ -26,6 +26,20 @@ export const QUERY_EXAMPLES: QueryExample[] = [
     }
   },
   {
+    label: 'GROUP BY (Aggregation)',
+    category: 'SELECT',
+    sql: `SELECT status, COUNT(*) AS count, SUM(amount) AS total_amount
+FROM orders
+GROUP BY status`,
+    supabaseJs: `supabase
+  .from('orders')
+  .select('status, count:count(), total_amount:amount.sum()')`,
+    postgrest: {
+      method: 'GET',
+      path: '/rest/v1/orders?select=status,count:count(),total_amount:amount.sum()',
+    }
+  },
+  {
     label: 'Complex WHERE with AND/OR',
     category: 'SELECT',
     sql: `SELECT id, name, email, created_at
